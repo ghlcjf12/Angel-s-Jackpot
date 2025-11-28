@@ -1,8 +1,13 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../widgets/how_to_play_dialog.dart';
 
 class CoinFlipGameScreen extends StatefulWidget {
   const CoinFlipGameScreen({super.key});
@@ -11,78 +16,96 @@ class CoinFlipGameScreen extends StatefulWidget {
   State<CoinFlipGameScreen> createState() => _CoinFlipGameScreenState();
 }
 
-class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
   int _betAmount = 10;
+  String _selected = "HEADS";
+  String _result = "HEADS";
   bool _isFlipping = false;
-  bool _isHeads = true;
-  String _selectedSide = "HEADS";
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 1));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _flip() {
+  void _flip() async {
+    final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
     if (provider.balance < _betAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Insufficient funds!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
+      );
       return;
     }
 
-    provider.spinSlotMachine(_betAmount);
-
     setState(() => _isFlipping = true);
-    _controller.forward(from: 0).then((_) {
-      setState(() {
-        _isFlipping = false;
-        _isHeads = Random().nextBool();
-      });
-      
-      bool win = (_selectedSide == "HEADS" && _isHeads) || (_selectedSide == "TAILS" && !_isHeads);
-      
-      if (win) {
-        provider.winPrize(_betAmount * 2);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text("WIN!")));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text("LOSE!")));
+
+    final success = await provider.placeBet(_betAmount);
+    if (!success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+        );
+        setState(() => _isFlipping = false);
       }
-    });
+      return;
+    }
+
+    final finalResult = Random().nextBool() ? "HEADS" : "TAILS";
+
+    for (int i = 0; i < 10; i++) {
+      await Future.delayed(const Duration(milliseconds: 80));
+      if (!mounted) return;
+      setState(() => _result = Random().nextBool() ? "HEADS" : "TAILS");
+    }
+
+    if (mounted) {
+      setState(() {
+        _result = finalResult;
+        _isFlipping = false;
+      });
+
+      if (_selected == _result) {
+        provider.winPrize(_betAmount * 2);
+        _showSnack(localization.translate({'en': 'WIN! +${_betAmount * 2} coins', 'ko': '당첨! +${_betAmount * 2} 코인'}), Colors.green);
+      } else {
+        _showSnack(localization.translate({'en': 'LOSE - Try again!', 'ko': '패배 - 다시 시도!'}), Colors.red);
+      }
+    }
+  }
+
+  void _showSnack(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: color, content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationService>();
+    String tr(Map<String, String> value) => localization.translate(value);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Coin Flip 🪙")),
+      appBar: AppBar(
+        title: Text(tr(AppStrings.coinFlip)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.amber),
+            onPressed: () => showHowToPlayDialog(context, AppStrings.coinFlipDescription),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: Center(
-                child: RotationTransition(
-                  turns: _controller,
-                  child: Container(
-                    width: 200,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: Colors.yellow.shade700,
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: Colors.amber.withOpacity(0.5), blurRadius: 20)],
-                    ),
-                    child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.yellow.shade700,
                       child: Text(
-                        _isFlipping ? "?" : (_isHeads ? "H" : "T"),
-                        style: const TextStyle(fontSize: 100, fontWeight: FontWeight.bold, color: Colors.white),
+                        _displayFace(_result, localization),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    Text(tr({'en': 'Choose Heads or Tails', 'ko': '앞면/뒷면을 선택하세요'})),
+                  ],
                 ),
               ),
             ),
@@ -97,40 +120,16 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> with SingleTick
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(onPressed: _isFlipping ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
-                      Text("Bet: $_betAmount", style: const TextStyle(fontSize: 24)),
+                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                       IconButton(onPressed: _isFlipping ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedSide = "HEADS"),
-                          child: Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: _selectedSide == "HEADS" ? Colors.amber : Colors.grey[800],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Center(child: Text("HEADS", style: TextStyle(fontWeight: FontWeight.bold))),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedSide = "TAILS"),
-                          child: Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: _selectedSide == "TAILS" ? Colors.amber : Colors.grey[800],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Center(child: Text("TAILS", style: TextStyle(fontWeight: FontWeight.bold))),
-                          ),
-                        ),
-                      ),
+                      _buildChoice(tr({'en': 'HEADS', 'ko': '앞면'}), "HEADS", Colors.orange),
+                      _buildChoice(tr({'en': 'TAILS', 'ko': '뒷면'}), "TAILS", Colors.blue),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -139,8 +138,11 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> with SingleTick
                     height: 60,
                     child: ElevatedButton(
                       onPressed: _isFlipping ? null : _flip,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade800),
-                      child: const Text("FLIP COIN", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.yellow.shade700),
+                      child: Text(
+                        tr({'en': 'FLIP', 'ko': '던지기'}),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                      ),
                     ),
                   ),
                 ],
@@ -152,6 +154,26 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> with SingleTick
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildChoice(String label, String key, Color color) {
+    return GestureDetector(
+      onTap: _isFlipping ? null : () => setState(() => _selected = key),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: _selected == key ? color : Colors.grey[800],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(label, style: TextStyle(color: _selected == key ? Colors.black : Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  String _displayFace(String value, LocalizationService localization) {
+    return localization.translate(
+      value == "HEADS" ? {'en': 'HEADS', 'ko': '앞면'} : {'en': 'TAILS', 'ko': '뒷면'},
     );
   }
 }

@@ -1,10 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.standard();
+
+  FirebaseService() {
+    _auth.authStateChanges().listen((_) => notifyListeners());
+  }
 
   User? get user => _auth.currentUser;
 
@@ -16,6 +22,26 @@ class FirebaseService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint("Auth Error: $e");
+    }
+  }
+
+  Future<bool> signInWithGoogle() async {
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return false;
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+      await _initializeUser();
+      return true;
+    } catch (e) {
+      debugPrint("Google sign-in failed: $e");
+      return false;
     }
   }
 
@@ -64,6 +90,56 @@ class FirebaseService extends ChangeNotifier {
     await userRef.update({
       'balance': FieldValue.increment(amount),
     });
+  }
+
+  /// Transaction-based balance deduction for game bets
+  /// Returns true if successful, false if insufficient balance
+  Future<bool> deductBalance(int amount) async {
+    if (user == null) return false;
+    final userRef = _db.collection('users').doc(user!.uid);
+
+    try {
+      return await _db.runTransaction<bool>((transaction) async {
+        final snapshot = await transaction.get(userRef);
+        if (!snapshot.exists) return false;
+
+        final currentBalance = snapshot.get('balance') as int;
+
+        if (currentBalance >= amount) {
+          transaction.update(userRef, {
+            'balance': currentBalance - amount,
+          });
+          return true;
+        } else {
+          return false;
+        }
+      });
+    } catch (e) {
+      debugPrint("Transaction failed: $e");
+      return false;
+    }
+  }
+
+  /// Transaction-based balance addition for winnings
+  Future<bool> addBalance(int amount) async {
+    if (user == null) return false;
+    final userRef = _db.collection('users').doc(user!.uid);
+
+    try {
+      return await _db.runTransaction<bool>((transaction) async {
+        final snapshot = await transaction.get(userRef);
+        if (!snapshot.exists) return false;
+
+        final currentBalance = snapshot.get('balance') as int;
+        transaction.update(userRef, {
+          'balance': currentBalance + amount,
+        });
+        return true;
+      });
+    } catch (e) {
+      debugPrint("Transaction failed: $e");
+      return false;
+    }
   }
 
   Stream<QuerySnapshot> getRankingStream() {

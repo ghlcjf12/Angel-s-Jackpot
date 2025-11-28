@@ -1,8 +1,13 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../widgets/how_to_play_dialog.dart';
 
 class HighLowGameScreen extends StatefulWidget {
   const HighLowGameScreen({super.key});
@@ -23,37 +28,68 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
     _currentCard = Random().nextInt(13) + 1;
   }
 
-  void _guess(bool higher) {
+  Future<void> _guess(bool higher) async {
+    final localization = context.read<LocalizationService>();
+    if (_isPlaying) return;
+
     final provider = context.read<GameProvider>();
     if (provider.balance < _betAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Insufficient funds!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
+      );
       return;
     }
 
-    provider.spinSlotMachine(_betAmount); // Deduct bet
+    setState(() => _isPlaying = true);
+
+    final success = await provider.placeBet(_betAmount);
+
+    if (!success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+        );
+        setState(() => _isPlaying = false);
+      }
+      return;
+    }
 
     int nextCard = Random().nextInt(13) + 1;
     bool win = false;
 
     if (higher && nextCard > _currentCard) win = true;
     if (!higher && nextCard < _currentCard) win = true;
-    if (nextCard == _currentCard) win = false; // Tie loses for simplicity
+    if (nextCard == _currentCard) win = false;
 
-    setState(() {
-      _currentCard = nextCard;
-      if (win) {
-        _message = "WIN! Card was $nextCard";
-        provider.winPrize(_betAmount * 2);
-      } else {
-        _message = "LOSE! Card was $nextCard";
-      }
-    });
+    if (mounted) {
+      setState(() {
+        _currentCard = nextCard;
+        _isPlaying = false;
+        if (win) {
+          _message = "${localization.translate(AppStrings.win)} ${localization.translate({'en': 'Card was', 'ko': '카드는'})} $nextCard";
+          provider.winPrize(_betAmount * 2);
+        } else {
+          _message = "${localization.translate(AppStrings.lose)} ${localization.translate({'en': 'Card was', 'ko': '카드는'})} $nextCard";
+        }
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationService>();
+    String tr(Map<String, String> value) => localization.translate(value);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("High-Low ⬆️⬇️")),
+      appBar: AppBar(
+        title: Text(tr(AppStrings.highLow)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.amber),
+            onPressed: () => showHowToPlayDialog(context, AppStrings.highLowDescription),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -62,11 +98,16 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Current Card", style: TextStyle(fontSize: 20, color: Colors.grey)),
+                    Text(tr({'en': 'Current Card', 'ko': '현재 카드'}), style: TextStyle(fontSize: 20, color: Colors.grey)),
                     const SizedBox(height: 10),
                     _buildCard(_currentCard),
                     const SizedBox(height: 30),
-                    Text(_message, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber)),
+                    Text(
+                      _message == "Will the next card be Higher or Lower?"
+                          ? tr({'en': 'Will the next card be Higher or Lower?', 'ko': '다음 카드는 높을까요? 낮을까요?'})
+                          : _message,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber),
+                    ),
                   ],
                 ),
               ),
@@ -81,9 +122,9 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(onPressed: () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
-                      Text("Bet: $_betAmount", style: const TextStyle(fontSize: 24)),
-                      IconButton(onPressed: () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                      IconButton(onPressed: _isPlaying ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
+                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
+                      IconButton(onPressed: _isPlaying ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -91,18 +132,18 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => _guess(true),
+                          onPressed: _isPlaying ? null : () => _guess(true),
                           icon: const Icon(Icons.arrow_upward),
-                          label: const Text("HIGHER"),
+                          label: Text(tr({'en': 'HIGHER', 'ko': '높다'})),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.all(20)),
                         ),
                       ),
                       const SizedBox(width: 20),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => _guess(false),
+                          onPressed: _isPlaying ? null : () => _guess(false),
                           icon: const Icon(Icons.arrow_downward),
-                          label: const Text("LOWER"),
+                          label: Text(tr({'en': 'LOWER', 'ko': '낮다'})),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: const EdgeInsets.all(20)),
                         ),
                       ),

@@ -1,8 +1,13 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../widgets/how_to_play_dialog.dart';
 
 class DiceGameScreen extends StatefulWidget {
   const DiceGameScreen({super.key});
@@ -18,29 +23,49 @@ class _DiceGameScreenState extends State<DiceGameScreen> {
   bool _isRolling = false;
 
   void _roll() async {
+    final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
     if (provider.balance < _betAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Insufficient funds!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
+      );
       return;
     }
 
-    provider.spinSlotMachine(_betAmount);
-
     setState(() => _isRolling = true);
-    
-    // Animation
+
+    final success = await provider.placeBet(_betAmount);
+
+    if (!success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+        );
+        setState(() => _isRolling = false);
+      }
+      return;
+    }
+
+    final finalResult = Random().nextInt(6) + 1;
+
     for (int i = 0; i < 10; i++) {
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
       setState(() => _result = Random().nextInt(6) + 1);
     }
 
-    setState(() => _isRolling = false);
+    if (mounted) {
+      setState(() {
+        _result = finalResult;
+        _isRolling = false;
+      });
 
-    if (_result == _selectedNumber) {
-      provider.winPrize(_betAmount * 5); // 1/6 chance, 5x payout
-      _showResult("WIN!", Colors.green);
-    } else {
-      _showResult("LOSE", Colors.red);
+      if (_result == _selectedNumber) {
+        provider.winPrize(_betAmount * 6);
+        _showResult(localization.translate({'en': 'WIN! +${_betAmount * 6} coins', 'ko': '당첨! +${_betAmount * 6} 코인'}), Colors.green);
+      } else {
+        _showResult(localization.translate({'en': 'LOSE - Better luck next time!', 'ko': '패배 - 다음 기회에!'}), Colors.red);
+      }
     }
   }
 
@@ -50,8 +75,19 @@ class _DiceGameScreenState extends State<DiceGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationService>();
+    String tr(Map<String, String> value) => localization.translate(value);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Dice 🎲")),
+      appBar: AppBar(
+        title: Text(tr(AppStrings.dice)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.amber),
+            onPressed: () => showHowToPlayDialog(context, AppStrings.diceDescription),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -76,7 +112,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    const Text("Predict the number (Payout 5x)", style: TextStyle(color: Colors.grey)),
+                    Text(tr({'en': 'Predict the number (Payout 6x)', 'ko': '숫자를 맞추세요 (6배 배당)'}), style: const TextStyle(color: Colors.grey)),
                   ],
                 ),
               ),
@@ -92,12 +128,11 @@ class _DiceGameScreenState extends State<DiceGameScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(onPressed: _isRolling ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
-                      Text("Bet: $_betAmount", style: const TextStyle(fontSize: 24)),
+                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                       IconButton(onPressed: _isRolling ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // Number Selection
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: List.generate(6, (index) {
@@ -123,7 +158,10 @@ class _DiceGameScreenState extends State<DiceGameScreen> {
                     child: ElevatedButton(
                       onPressed: _isRolling ? null : _roll,
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                      child: const Text("ROLL DICE", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: Text(
+                        tr({'en': 'ROLL DICE', 'ko': '주사위 굴리기'}),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
                     ),
                   ),
                 ],

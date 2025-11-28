@@ -1,8 +1,13 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../widgets/how_to_play_dialog.dart';
 
 class BaccaratGameScreen extends StatefulWidget {
   const BaccaratGameScreen({super.key});
@@ -20,20 +25,28 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
   String _resultMessage = "Place your bet";
 
   void _deal() async {
+    final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
     if (provider.balance < _betAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Insufficient funds!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
+      );
       return;
     }
 
-    provider.spinSlotMachine(_betAmount);
+    final success = await provider.placeBet(_betAmount);
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+      );
+      return;
+    }
 
     setState(() {
       _playerHand = [_drawCard(), _drawCard()];
       _bankerHand = [_drawCard(), _drawCard()];
     });
     
-    // Simple Baccarat Logic (No 3rd card rule for simplicity in this MVP, just compare sums % 10)
     int playerSum = _calculateSum(_playerHand);
     int bankerSum = _calculateSum(_bankerHand);
     
@@ -47,18 +60,22 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     if (_selectedBet == winner) {
       win = true;
       if (winner == "TIE") multiplier = 8;
-      else multiplier = 2; // 1:1 payout usually (minus commission for banker but ignoring for now)
+      else multiplier = 2;
     }
     
     setState(() {
-      _resultMessage = "$winner WINS! (P:$playerSum vs B:$bankerSum)";
+      _resultMessage = "${_betLabel(winner, localization)} ${localization.translate({'en': 'WINS!', 'ko': '승리!'})} (P:$playerSum vs B:$bankerSum)";
     });
     
     if (win) {
       provider.winPrize((_betAmount * multiplier).toInt());
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text("WIN!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.green, content: Text(localization.translate(AppStrings.win))),
+      );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text("LOSE!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text(localization.translate(AppStrings.lose))),
+      );
     }
   }
   
@@ -68,7 +85,6 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     int sum = 0;
     for (var card in hand) {
       if (card >= 10) {
-        // Face cards = 0
       } else {
         sum += card;
       }
@@ -78,8 +94,19 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationService>();
+    String tr(Map<String, String> value) => localization.translate(value);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Baccarat 🎴")),
+      appBar: AppBar(
+        title: Text(tr(AppStrings.baccarat)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.amber),
+            onPressed: () => showHowToPlayDialog(context, AppStrings.baccaratDescription),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -88,9 +115,14 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildHand("BANKER", _bankerHand),
-                  Text(_resultMessage, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber)),
-                  _buildHand("PLAYER", _playerHand),
+                  _buildHand(tr({'en': 'BANKER', 'ko': '뱅커'}), _bankerHand),
+                  Text(
+                    _resultMessage == "Place your bet"
+                        ? tr({'en': 'Place your bet', 'ko': '베팅하세요'})
+                        : _resultMessage,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber),
+                  ),
+                  _buildHand(tr({'en': 'PLAYER', 'ko': '플레이어'}), _playerHand),
                 ],
               ),
             ),
@@ -105,18 +137,18 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(onPressed: () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
-                      Text("Bet: $_betAmount", style: const TextStyle(fontSize: 24)),
+                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                       IconButton(onPressed: () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
                     ],
                   ),
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      _buildBetOption("PLAYER", Colors.blue),
+                      _buildBetOption(tr({'en': 'PLAYER', 'ko': '플레이어'}), "PLAYER", Colors.blue),
                       const SizedBox(width: 10),
-                      _buildBetOption("TIE", Colors.green),
+                      _buildBetOption(tr({'en': 'TIE', 'ko': '타이'}), "TIE", Colors.green),
                       const SizedBox(width: 10),
-                      _buildBetOption("BANKER", Colors.red),
+                      _buildBetOption(tr({'en': 'BANKER', 'ko': '뱅커'}), "BANKER", Colors.red),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -126,7 +158,10 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                     child: ElevatedButton(
                       onPressed: _deal,
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
-                      child: const Text("DEAL", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: Text(
+                        tr({'en': 'DEAL', 'ko': '딜'}),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
                     ),
                   ),
                 ],
@@ -141,11 +176,11 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     );
   }
 
-  Widget _buildBetOption(String label, Color color) {
-    bool selected = _selectedBet == label;
+  Widget _buildBetOption(String label, String key, Color color) {
+    bool selected = _selectedBet == key;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedBet = label),
+        onTap: () => setState(() => _selectedBet = key),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 15),
           decoration: BoxDecoration(
@@ -191,5 +226,17 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
       ),
       child: Center(child: Text(label, style: const TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold))),
     );
+  }
+
+  String _betLabel(String key, LocalizationService localization) {
+    switch (key) {
+      case "PLAYER":
+        return localization.translate({'en': 'PLAYER', 'ko': '플레이어'});
+      case "BANKER":
+        return localization.translate({'en': 'BANKER', 'ko': '뱅커'});
+      case "TIE":
+      default:
+        return localization.translate({'en': 'TIE', 'ko': '타이'});
+    }
   }
 }

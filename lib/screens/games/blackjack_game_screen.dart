@@ -1,8 +1,13 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../widgets/how_to_play_dialog.dart';
 
 class BlackjackGameScreen extends StatefulWidget {
   const BlackjackGameScreen({super.key});
@@ -21,19 +26,28 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
   
   String _message = "Place your bet";
 
-  void _startGame() {
+  void _startGame() async {
+    final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
     if (provider.balance < _betAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Insufficient funds!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
+      );
       return;
     }
 
-    provider.spinSlotMachine(_betAmount); // Deduct bet
+    final success = await provider.placeBet(_betAmount);
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+      );
+      return;
+    }
 
     setState(() {
       _isPlaying = true;
       _isStand = false;
-      _message = "Hit or Stand?";
+      _message = localization.translate({'en': 'Hit or Stand?', 'ko': '히트 또는 스탠드?'});
       _playerHand = [_drawCard(), _drawCard()];
       _dealerHand = [_drawCard(), _drawCard()];
     });
@@ -81,7 +95,6 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
       _isStand = true;
     });
     
-    // Dealer AI
     while (_calculateScore(_dealerHand) < 17) {
       await Future.delayed(const Duration(milliseconds: 500));
       setState(() {
@@ -102,25 +115,37 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
   }
 
   void _endGame(bool? win) {
+    final localization = context.read<LocalizationService>();
     setState(() {
       _isPlaying = false;
     });
     
     if (win == true) {
-      _message = "YOU WIN!";
+      _message = localization.translate({'en': 'YOU WIN!', 'ko': '승리!'});
       context.read<GameProvider>().winPrize(_betAmount * 2);
     } else if (win == false) {
-      _message = "YOU LOSE!";
+      _message = localization.translate({'en': 'YOU LOSE!', 'ko': '패배!'});
     } else {
-      _message = "PUSH (Tie)";
-      context.read<GameProvider>().winPrize(_betAmount); // Refund
+      _message = localization.translate({'en': 'PUSH (Tie)', 'ko': '무승부 (푸시)'});
+      context.read<GameProvider>().winPrize(_betAmount);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final localization = context.watch<LocalizationService>();
+    String tr(Map<String, String> value) => localization.translate(value);
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Blackjack 🃏")),
+      appBar: AppBar(
+        title: Text(tr(AppStrings.blackjack)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.amber),
+            onPressed: () => showHowToPlayDialog(context, AppStrings.blackjackDescription),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -129,7 +154,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("Dealer: ${_isStand ? _calculateScore(_dealerHand) : "?"}", style: const TextStyle(fontSize: 20)),
+                  Text("${tr({'en': 'Dealer', 'ko': '딜러'})}: ${_isStand ? _calculateScore(_dealerHand) : "?"}", style: const TextStyle(fontSize: 20)),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -145,14 +170,17 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
             ),
             
             // Message
-            Text(_message, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber)),
+            Text(
+              _message == "Place your bet" ? tr({'en': 'Place your bet', 'ko': '베팅하세요'}) : _message,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber),
+            ),
             
             // Player Area
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("You: ${_calculateScore(_playerHand)}", style: const TextStyle(fontSize: 20)),
+                  Text("${tr({'en': 'You', 'ko': '플레이어'})}: ${_calculateScore(_playerHand)}", style: const TextStyle(fontSize: 20)),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -173,7 +201,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(onPressed: () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
-                        Text("Bet: $_betAmount", style: const TextStyle(fontSize: 24)),
+                        Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                         IconButton(onPressed: () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
                       ],
                     ),
@@ -184,15 +212,30 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                     child: _isPlaying
                         ? Row(
                             children: [
-                              Expanded(child: ElevatedButton(onPressed: _hit, style: ElevatedButton.styleFrom(backgroundColor: Colors.green), child: const Text("HIT"))),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _hit,
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                                  child: Text(tr({'en': 'HIT', 'ko': '히트'})),
+                                ),
+                              ),
                               const SizedBox(width: 20),
-                              Expanded(child: ElevatedButton(onPressed: _stand, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("STAND"))),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _stand,
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                  child: Text(tr({'en': 'STAND', 'ko': '스탠드'})),
+                                ),
+                              ),
                             ],
                           )
                         : ElevatedButton(
                             onPressed: _startGame,
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
-                            child: const Text("DEAL", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
+                            child: Text(
+                              tr({'en': 'DEAL', 'ko': '딜'}),
+                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                            ),
                           ),
                   ),
                 ],
