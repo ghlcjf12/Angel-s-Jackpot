@@ -1,4 +1,4 @@
-package com.example.gamble
+package com.insightcrayon.angelsjackpot
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -63,6 +63,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '180477698754',
     projectId: 'gamble-king-2025',
     storageBucket: 'gamble-king-2025.firebasestorage.app',
-    iosBundleId: 'com.example.gamble',
+    iosBundleId: 'com.insightcrayon.angelsjackpot',
   );
 }

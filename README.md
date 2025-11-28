@@ -1,4 +1,4 @@
-# gamble
+# Angel's Jackpot
 
 A new Flutter project.
 

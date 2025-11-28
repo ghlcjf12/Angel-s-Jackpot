@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "gamble" "\0"
+            VALUE "CompanyName", "com.insightcrayon" "\0"
+            VALUE "FileDescription", "Angel's Jackpot" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "gamble" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "gamble.exe" "\0"
-            VALUE "ProductName", "gamble" "\0"
+            VALUE "InternalName", "AngelsJackpot" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.insightcrayon. All rights reserved." "\0"
+            VALUE "OriginalFilename", "AngelsJackpot.exe" "\0"
+            VALUE "ProductName", "Angel's Jackpot" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

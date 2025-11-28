@@ -1,26 +1,44 @@
 {
   "project_info": {
-    "project_number": "180477698754",
-    "project_id": "gamble-king-2025",
-    "storage_bucket": "gamble-king-2025.firebasestorage.app"
+    "project_number": "335286117764",
+    "project_id": "angel-s-jackpot",
+    "storage_bucket": "angel-s-jackpot.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:180477698754:android:78b953d750b852b460915b",
+        "mobilesdk_app_id": "1:335286117764:android:4d2730d8323c3bdb8469d1",
         "android_client_info": {
-          "package_name": "com.example.gamble"
+          "package_name": "com.insightcrayon.angelsjackpot"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "335286117764-mvel79jbu140oqb8obkgfo9n1catkb0g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.insightcrayon.angelsjackpot",
+            "certificate_hash": "d4ea6e4e9df7c1681c064ec7c8ed0eff4930bf08"
+          }
+        },
+        {
+          "client_id": "335286117764-6vhji5leb3d80djcuu129oqs274ceefq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCs5OJo-W6dVrr-w2KcsQmM-QsUZCLalCM"
+          "current_key": "AIzaSyCJXx6ye-r2JSuZe7oJoFCGKm64PNZ2ElE"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "335286117764-6vhji5leb3d80djcuu129oqs274ceefq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
