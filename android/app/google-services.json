@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "180477698754",
+    "project_id": "gamble-king-2025",
+    "storage_bucket": "gamble-king-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:180477698754:android:78b953d750b852b460915b",
+        "android_client_info": {
+          "package_name": "com.example.gamble"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCs5OJo-W6dVrr-w2KcsQmM-QsUZCLalCM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
