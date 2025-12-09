@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Ignore local CLI/editor settings and accidental reserved-name files
+.claude/
+nul
+android/nul
