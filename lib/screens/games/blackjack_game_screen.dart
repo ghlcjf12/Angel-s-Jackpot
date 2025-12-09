@@ -9,6 +9,75 @@ import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
 
+// Card class with suit and rank
+class _PlayingCard {
+  final int rank; // 1-13 (A-K)
+  final int suit; // 0-3 (♠♥♦♣)
+
+  _PlayingCard(this.rank, this.suit);
+
+  String get rankLabel {
+    switch (rank) {
+      case 1:
+        return "A";
+      case 11:
+        return "J";
+      case 12:
+        return "Q";
+      case 13:
+        return "K";
+      default:
+        return rank.toString();
+    }
+  }
+
+  String get suitLabel {
+    switch (suit) {
+      case 0:
+        return "♠";
+      case 1:
+        return "♥";
+      case 2:
+        return "♦";
+      case 3:
+        return "♣";
+      default:
+        return "";
+    }
+  }
+
+  Color get suitColor {
+    return (suit == 1 || suit == 2) ? Colors.red : Colors.black;
+  }
+}
+
+class _Deck {
+  final List<_PlayingCard> _cards = [];
+
+  _Deck() {
+    reset();
+  }
+
+  void reset() {
+    _cards.clear();
+    for (int suit = 0; suit < 4; suit++) {
+      for (int rank = 1; rank <= 13; rank++) {
+        _cards.add(_PlayingCard(rank, suit));
+      }
+    }
+    shuffle();
+  }
+
+  void shuffle() {
+    _cards.shuffle(Random());
+  }
+
+  _PlayingCard draw() {
+    if (_cards.isEmpty) reset();
+    return _cards.removeLast();
+  }
+}
+
 class BlackjackGameScreen extends StatefulWidget {
   const BlackjackGameScreen({super.key});
 
@@ -20,15 +89,26 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
   int _betAmount = 10;
   bool _isPlaying = false;
   bool _isStand = false;
-  
-  List<int> _playerHand = [];
-  List<int> _dealerHand = [];
-  
+  bool _isDealing = false;
+
+  List<_PlayingCard> _playerHand = [];
+  List<_PlayingCard> _dealerHand = [];
+  late _Deck _deck;
+
   String _message = "Place your bet";
 
+  @override
+  void initState() {
+    super.initState();
+    _deck = _Deck();
+  }
+
   void _startGame() async {
+    if (_isDealing) return;
+
     final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
+
     if (provider.balance < _betAmount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
@@ -36,42 +116,47 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
       return;
     }
 
+    setState(() => _isDealing = true);
+
     final success = await provider.placeBet(_betAmount);
     if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+        );
+        setState(() => _isDealing = false);
+      }
       return;
     }
+
+    _deck.reset();
 
     setState(() {
       _isPlaying = true;
       _isStand = false;
+      _isDealing = false;
       _message = localization.translate({'en': 'Hit or Stand?', 'ko': '히트 또는 스탠드?'});
-      _playerHand = [_drawCard(), _drawCard()];
-      _dealerHand = [_drawCard(), _drawCard()];
+      _playerHand = [_deck.draw(), _deck.draw()];
+      _dealerHand = [_deck.draw(), _deck.draw()];
     });
-    
+
+    // Check for natural blackjack
     if (_calculateScore(_playerHand) == 21) {
-      _stand(); // Blackjack!
+      _stand();
     }
   }
 
-  int _drawCard() {
-    return Random().nextInt(13) + 1;
-  }
-
-  int _calculateScore(List<int> hand) {
+  int _calculateScore(List<_PlayingCard> hand) {
     int score = 0;
     int aces = 0;
     for (var card in hand) {
-      if (card == 1) {
+      if (card.rank == 1) {
         aces++;
         score += 11;
-      } else if (card >= 10) {
+      } else if (card.rank >= 10) {
         score += 10;
       } else {
-        score += card;
+        score += card.rank;
       }
     }
     while (score > 21 && aces > 0) {
@@ -82,29 +167,41 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
   }
 
   void _hit() {
+    if (_isDealing || _isStand) return;
+
     setState(() {
-      _playerHand.add(_drawCard());
+      _playerHand.add(_deck.draw());
     });
+
     if (_calculateScore(_playerHand) > 21) {
       _endGame(false); // Bust
     }
   }
 
   void _stand() async {
+    if (_isDealing) return;
+
     setState(() {
       _isStand = true;
+      _isDealing = true;
     });
-    
+
+    // Dealer draws until 17
     while (_calculateScore(_dealerHand) < 17) {
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
       setState(() {
-        _dealerHand.add(_drawCard());
+        _dealerHand.add(_deck.draw());
       });
     }
-    
+
+    if (!mounted) return;
+
     int playerScore = _calculateScore(_playerHand);
     int dealerScore = _calculateScore(_dealerHand);
-    
+
+    setState(() => _isDealing = false);
+
     if (dealerScore > 21 || playerScore > dealerScore) {
       _endGame(true);
     } else if (playerScore == dealerScore) {
@@ -119,15 +216,42 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     setState(() {
       _isPlaying = false;
     });
-    
+
     if (win == true) {
       _message = localization.translate({'en': 'YOU WIN!', 'ko': '승리!'});
       context.read<GameProvider>().winPrize(_betAmount * 2);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text(localization.translate({
+            'en': 'Congratulations! +${_betAmount * 2} coins',
+            'ko': '축하합니다! +${_betAmount * 2} 코인',
+          })),
+        ),
+      );
     } else if (win == false) {
       _message = localization.translate({'en': 'YOU LOSE!', 'ko': '패배!'});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(localization.translate({
+            'en': 'Better luck next time!',
+            'ko': '다음 기회에!',
+          })),
+        ),
+      );
     } else {
       _message = localization.translate({'en': 'PUSH (Tie)', 'ko': '무승부 (푸시)'});
       context.read<GameProvider>().winPrize(_betAmount);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.orange,
+          content: Text(localization.translate({
+            'en': 'Push! Bet returned.',
+            'ko': '푸시! 베팅금 반환.',
+          })),
+        ),
+      );
     }
   }
 
@@ -151,45 +275,110 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
           children: [
             // Dealer Area
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("${tr({'en': 'Dealer', 'ko': '딜러'})}: ${_isStand ? _calculateScore(_dealerHand) : "?"}", style: const TextStyle(fontSize: 20)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: _dealerHand.asMap().entries.map((entry) {
-                      int idx = entry.key;
-                      int card = entry.value;
-                      if (!_isStand && idx == 1) return _buildCardBack();
-                      return _buildCard(card);
-                    }).toList(),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.green.shade900,
+                      Colors.green.shade800,
+                    ],
                   ),
-                ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black38,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        "${tr({'en': 'Dealer', 'ko': '딜러'})}: ${_isStand ? _calculateScore(_dealerHand) : "?"}",
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    SizedBox(
+                      height: 100,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: _dealerHand.asMap().entries.map((entry) {
+                          int idx = entry.key;
+                          _PlayingCard card = entry.value;
+                          if (!_isStand && idx == 1) return _buildCardBack();
+                          return _buildCard(card);
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            
+
             // Message
-            Text(
-              _message == "Place your bet" ? tr({'en': 'Place your bet', 'ko': '베팅하세요'}) : _message,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              color: Colors.black54,
+              child: Text(
+                _message == "Place your bet" ? tr({'en': 'Place your bet', 'ko': '베팅하세요'}) : _message,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: _message.contains('WIN') ? Colors.green : (_message.contains('LOSE') ? Colors.red : Colors.amber),
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
-            
+
             // Player Area
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("${tr({'en': 'You', 'ko': '플레이어'})}: ${_calculateScore(_playerHand)}", style: const TextStyle(fontSize: 20)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: _playerHand.map((c) => _buildCard(c)).toList(),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.green.shade800,
+                      Colors.green.shade900,
+                    ],
                   ),
-                ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black38,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        "${tr({'en': 'You', 'ko': '플레이어'})}: ${_calculateScore(_playerHand)}",
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    SizedBox(
+                      height: 100,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: _playerHand.map((c) => _buildCard(c)).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            
+
             // Controls
             Container(
               padding: const EdgeInsets.all(20),
@@ -200,12 +389,18 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        IconButton(onPressed: () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
+                        IconButton(
+                          onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                          icon: const Icon(Icons.remove),
+                        ),
                         Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
-                        IconButton(onPressed: () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                        IconButton(
+                          onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
+                          icon: const Icon(Icons.add),
+                        ),
                       ],
                     ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     height: 60,
@@ -214,26 +409,40 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                             children: [
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: _hit,
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                                  child: Text(tr({'en': 'HIT', 'ko': '히트'})),
+                                  onPressed: (_isStand || _isDealing) ? null : _hit,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                    minimumSize: const Size.fromHeight(60),
+                                  ),
+                                  child: Text(
+                                    tr({'en': 'HIT', 'ko': '히트'}),
+                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 20),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: _stand,
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                  child: Text(tr({'en': 'STAND', 'ko': '스탠드'})),
+                                  onPressed: (_isStand || _isDealing) ? null : _stand,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    minimumSize: const Size.fromHeight(60),
+                                  ),
+                                  child: Text(
+                                    tr({'en': 'STAND', 'ko': '스탠드'}),
+                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
                             ],
                           )
                         : ElevatedButton(
-                            onPressed: _startGame,
+                            onPressed: _isDealing ? null : _startGame,
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
                             child: Text(
-                              tr({'en': 'DEAL', 'ko': '딜'}),
+                              _isDealing
+                                  ? tr({'en': 'DEALING...', 'ko': '딜링 중...'})
+                                  : tr({'en': 'DEAL', 'ko': '딜'}),
                               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
                             ),
                           ),
@@ -241,7 +450,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                 ],
               ),
             ),
-            
+
             // Banner Ad
             const BannerAdWidget(),
           ],
@@ -250,22 +459,87 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     );
   }
 
-  Widget _buildCard(int value) {
-    String label = value.toString();
-    if (value == 1) label = "A";
-    if (value == 11) label = "J";
-    if (value == 12) label = "Q";
-    if (value == 13) label = "K";
-    
+  Widget _buildCard(_PlayingCard card) {
     return Container(
       width: 60,
       height: 90,
-      margin: const EdgeInsets.all(4),
+      margin: const EdgeInsets.symmetric(horizontal: 3),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(2, 2),
+          ),
+        ],
       ),
-      child: Center(child: Text(label, style: const TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold))),
+      child: Stack(
+        children: [
+          // Top left
+          Positioned(
+            top: 4,
+            left: 4,
+            child: Column(
+              children: [
+                Text(
+                  card.rankLabel,
+                  style: TextStyle(
+                    color: card.suitColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  card.suitLabel,
+                  style: TextStyle(
+                    color: card.suitColor,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Center
+          Center(
+            child: Text(
+              card.suitLabel,
+              style: TextStyle(
+                color: card.suitColor,
+                fontSize: 28,
+              ),
+            ),
+          ),
+          // Bottom right (inverted)
+          Positioned(
+            bottom: 4,
+            right: 4,
+            child: Transform.rotate(
+              angle: 3.14159,
+              child: Column(
+                children: [
+                  Text(
+                    card.rankLabel,
+                    style: TextStyle(
+                      color: card.suitColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    card.suitLabel,
+                    style: TextStyle(
+                      color: card.suitColor,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -273,11 +547,33 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     return Container(
       width: 60,
       height: 90,
-      margin: const EdgeInsets.all(4),
+      margin: const EdgeInsets.symmetric(horizontal: 3),
       decoration: BoxDecoration(
-        color: Colors.red.shade900,
+        gradient: LinearGradient(
+          colors: [Colors.red.shade900, Colors.red.shade800],
+        ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(2, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Container(
+          width: 40,
+          height: 60,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.amber, width: 1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Center(
+            child: Icon(Icons.question_mark, color: Colors.amber, size: 24),
+          ),
+        ),
       ),
     );
   }

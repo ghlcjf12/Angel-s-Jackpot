@@ -9,6 +9,17 @@ import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
 
+// Roulette wheel numbers in order (European)
+const List<int> _wheelNumbers = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+  5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+
+// Red numbers on roulette wheel
+const Set<int> _redNumbers = {
+  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+};
+
 class RouletteGameScreen extends StatefulWidget {
   const RouletteGameScreen({super.key});
 
@@ -66,7 +77,7 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
     _finalResult = Random().nextInt(37); // 0-36
     _finalColor = "GREEN";
     if (_finalResult != 0) {
-      _finalColor = _finalResult! % 2 == 0 ? "RED" : "BLACK";
+      _finalColor = _redNumbers.contains(_finalResult) ? "RED" : "BLACK";
     }
 
     final double targetAngle = (_finalResult! * 2 * pi / 37);
@@ -169,31 +180,49 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
             // Wheel Area
             Expanded(
               child: Center(
-                child: Transform.rotate(
-                  angle: _angle,
-                  child: Container(
-                    width: 300,
-                    height: 300,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      image: DecorationImage(image: NetworkImage("https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Roulette_wheel.svg/1200px-Roulette_wheel.svg.png")),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Spinning wheel
+                    Transform.rotate(
+                      angle: _angle,
+                      child: CustomPaint(
+                        size: const Size(280, 280),
+                        painter: _RouletteWheelPainter(),
+                      ),
                     ),
-                    child: Container(
+                    // Ball indicator (stationary pointer at top)
+                    Positioned(
+                      top: 0,
+                      child: Container(
+                        width: 20,
+                        height: 30,
+                        decoration: const BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    // Center hub
+                    Container(
+                      width: 60,
+                      height: 60,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.amber, width: 5),
-                        gradient: const SweepGradient(
-                          colors: [Colors.red, Colors.black, Colors.red, Colors.black, Colors.green, Colors.red],
-                        ),
+                        color: Colors.amber.shade800,
+                        border: Border.all(color: Colors.amber, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 10,
+                          ),
+                        ],
                       ),
-                      child: Center(
-                        child: Text(
-                          tr({'en': 'SPIN', 'ko': '스핀'}),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
+                      child: const Center(
+                        child: Icon(Icons.casino, color: Colors.white, size: 30),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -282,4 +311,99 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
         return localization.translate({'en': 'GREEN', 'ko': '초록'});
     }
   }
+}
+
+class _RouletteWheelPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final segmentAngle = 2 * pi / 37;
+
+    // Draw outer border
+    final borderPaint = Paint()
+      ..color = Colors.amber.shade700
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8;
+    canvas.drawCircle(center, radius - 4, borderPaint);
+
+    // Draw segments
+    for (int i = 0; i < 37; i++) {
+      final startAngle = i * segmentAngle - pi / 2;
+      final number = _wheelNumbers[i];
+
+      Color segmentColor;
+      if (number == 0) {
+        segmentColor = Colors.green.shade700;
+      } else if (_redNumbers.contains(number)) {
+        segmentColor = Colors.red.shade700;
+      } else {
+        segmentColor = Colors.grey.shade900;
+      }
+
+      final paint = Paint()
+        ..color = segmentColor
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius - 12),
+        startAngle,
+        segmentAngle,
+        true,
+        paint,
+      );
+
+      // Draw segment border
+      final segmentBorderPaint = Paint()
+        ..color = Colors.amber.shade600
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius - 12),
+        startAngle,
+        segmentAngle,
+        true,
+        segmentBorderPaint,
+      );
+
+      // Draw number text
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: number.toString(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      canvas.save();
+      final angle = startAngle + segmentAngle / 2;
+      final textRadius = radius - 35;
+      final x = center.dx + textRadius * cos(angle);
+      final y = center.dy + textRadius * sin(angle);
+      canvas.translate(x, y);
+      canvas.rotate(angle + pi / 2);
+      textPainter.paint(canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
+      canvas.restore();
+    }
+
+    // Draw inner circle
+    final innerPaint = Paint()
+      ..color = Colors.brown.shade800
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius * 0.3, innerPaint);
+
+    final innerBorderPaint = Paint()
+      ..color = Colors.amber.shade600
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(center, radius * 0.3, innerBorderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

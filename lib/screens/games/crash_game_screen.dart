@@ -22,6 +22,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
   bool _isPlaying = false;
   bool _crashed = false;
   bool _cashedOut = false;
+  bool _isCashingOut = false; // Prevent multiple cash-out attempts
   double _multiplier = 1.0;
   double _crashPoint = 0.0;
   int _betAmount = 10;
@@ -31,10 +32,20 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
   double _time = 0.0;
 
   double _determineCrashPoint() {
-    // Exponential-like distribution with sensible bounds (min 1.2x, max 50x).
-    final r = Random().nextDouble().clamp(0.0001, 0.9999);
-    final raw = 1.2 + (-log(r) * 1.5); // lambda ~1.5
-    return raw.clamp(1.2, 50.0);
+    // 실제 크래시 게임의 확률 분포 구현
+    // 하우스 엣지 1%를 고려한 지수 분포 (99% RTP)
+    final random = Random();
+    final r = random.nextDouble();
+    
+    // 99% RTP를 위한 지수 분포: E = 0.99 / (1 - 1/E)
+    // crashPoint = 0.99 / (1 - r)
+    final crashPoint = 0.99 / (1 - r);
+    
+    // 현실적인 범위로 제한
+    // - 최소: 1.00x (즉시 크래시도 가능)
+    // - 최대: 1000x (매우 드물게)
+    // - 대부분은 1.0x ~ 3.0x 사이에 분포
+    return crashPoint.clamp(1.00, 1000.0);
   }
 
   void _startGame() async {
@@ -59,6 +70,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
       _isPlaying = true;
       _crashed = false;
       _cashedOut = false;
+      _isCashingOut = false;
       _multiplier = 1.0;
       _time = 0.0;
       _spots
@@ -87,28 +99,38 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
     });
   }
 
-  void _cashOut() {
+  void _cashOut() async {
     final localization = context.read<LocalizationService>();
-    if (_cashedOut || _crashed) return;
+
+    // Prevent multiple cash-out attempts
+    if (_cashedOut || _crashed || _isCashingOut) return;
+
+    setState(() => _isCashingOut = true);
 
     _timer?.cancel();
     final winAmount = (_betAmount * _multiplier).floor();
-    context.read<GameProvider>().winPrize(winAmount);
 
-    setState(() {
-      _cashedOut = true;
-      _isPlaying = false;
-    });
+    // Award the prize
+    await context.read<GameProvider>().winPrize(winAmount);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          localization.isKorean
-              ? "${_multiplier.toStringAsFixed(2)}배에서 캐시 아웃! $winAmount 코인 획득!"
-              : "Cashed out at ${_multiplier.toStringAsFixed(2)}x! Won $winAmount coins!",
+    if (mounted) {
+      setState(() {
+        _cashedOut = true;
+        _isPlaying = false;
+        _isCashingOut = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text(
+            localization.isKorean
+                ? "${_multiplier.toStringAsFixed(2)}배에서 캐시 아웃! $winAmount 코인 획득!"
+                : "Cashed out at ${_multiplier.toStringAsFixed(2)}x! Won $winAmount coins!",
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -209,10 +231,12 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
                     height: 60,
                     child: _isPlaying
                         ? ElevatedButton(
-                            onPressed: _cashedOut ? null : _cashOut,
+                            onPressed: (_cashedOut || _isCashingOut) ? null : _cashOut,
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                             child: Text(
-                              tr({'en': 'CASH OUT', 'ko': '캐시 아웃'}),
+                              _isCashingOut
+                                  ? tr({'en': 'CASHING OUT...', 'ko': '캐시아웃 중...'})
+                                  : tr({'en': 'CASH OUT', 'ko': '캐시 아웃'}),
                               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                             ),
                           )

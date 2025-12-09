@@ -19,14 +19,18 @@ class BaccaratGameScreen extends StatefulWidget {
 class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
   int _betAmount = 10;
   String _selectedBet = "PLAYER"; // PLAYER, BANKER, TIE
-  
+  bool _isDealing = false;
+
   List<int> _playerHand = [];
   List<int> _bankerHand = [];
   String _resultMessage = "Place your bet";
 
   void _deal() async {
+    if (_isDealing) return;
+
     final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
+
     if (provider.balance < _betAmount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
@@ -34,11 +38,16 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
       return;
     }
 
+    setState(() => _isDealing = true);
+
     final success = await provider.placeBet(_betAmount);
     if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+        );
+        setState(() => _isDealing = false);
+      }
       return;
     }
 
@@ -46,36 +55,45 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
       _playerHand = [_drawCard(), _drawCard()];
       _bankerHand = [_drawCard(), _drawCard()];
     });
-    
+
+    // Delay for animation effect
+    await Future.delayed(const Duration(milliseconds: 500));
+
     int playerSum = _calculateSum(_playerHand);
     int bankerSum = _calculateSum(_bankerHand);
-    
+
     String winner = "TIE";
     if (playerSum > bankerSum) winner = "PLAYER";
     if (bankerSum > playerSum) winner = "BANKER";
-    
+
     bool win = false;
     double multiplier = 0;
-    
+
     if (_selectedBet == winner) {
       win = true;
-      if (winner == "TIE") multiplier = 8;
-      else multiplier = 2;
+      if (winner == "TIE") {
+        multiplier = 8;
+      } else {
+        multiplier = 2;
+      }
     }
-    
-    setState(() {
-      _resultMessage = "${_betLabel(winner, localization)} ${localization.translate({'en': 'WINS!', 'ko': '승리!'})} (P:$playerSum vs B:$bankerSum)";
-    });
-    
-    if (win) {
-      provider.winPrize((_betAmount * multiplier).toInt());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: Colors.green, content: Text(localization.translate(AppStrings.win))),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: Colors.red, content: Text(localization.translate(AppStrings.lose))),
-      );
+
+    if (mounted) {
+      setState(() {
+        _resultMessage = "${_betLabel(winner, localization)} ${localization.translate({'en': 'WINS!', 'ko': '승리!'})} (P:$playerSum vs B:$bankerSum)";
+        _isDealing = false;
+      });
+
+      if (win) {
+        provider.winPrize((_betAmount * multiplier).toInt());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.green, content: Text(localization.translate(AppStrings.win))),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text(localization.translate(AppStrings.lose))),
+        );
+      }
     }
   }
   
@@ -84,7 +102,9 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
   int _calculateSum(List<int> hand) {
     int sum = 0;
     for (var card in hand) {
+      // 10, J, Q, K are worth 0 points
       if (card >= 10) {
+        sum += 0;
       } else {
         sum += card;
       }
@@ -136,9 +156,15 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(onPressed: () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
+                      IconButton(
+                        onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                        icon: const Icon(Icons.remove),
+                      ),
                       Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
-                      IconButton(onPressed: () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                      IconButton(
+                        onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
+                        icon: const Icon(Icons.add),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -156,10 +182,12 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: _deal,
+                      onPressed: _isDealing ? null : _deal,
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
                       child: Text(
-                        tr({'en': 'DEAL', 'ko': '딜'}),
+                        _isDealing
+                            ? tr({'en': 'DEALING...', 'ko': '딜링 중...'})
+                            : tr({'en': 'DEAL', 'ko': '딜'}),
                         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
@@ -180,11 +208,12 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     bool selected = _selectedBet == key;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedBet = key),
-        child: Container(
+        onTap: _isDealing ? null : () => setState(() => _selectedBet = key),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 15),
           decoration: BoxDecoration(
-            color: color.withOpacity(selected ? 1.0 : 0.3),
+            color: color.withOpacity(selected ? 1.0 : (_isDealing ? 0.2 : 0.3)),
             border: selected ? Border.all(color: Colors.white, width: 2) : null,
             borderRadius: BorderRadius.circular(8),
           ),

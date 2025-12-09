@@ -16,15 +16,40 @@ class SlotsGameScreen extends StatefulWidget {
   State<SlotsGameScreen> createState() => _SlotsGameScreenState();
 }
 
-class _SlotsGameScreenState extends State<SlotsGameScreen> {
+class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderStateMixin {
   final List<String> _symbols = ["🍒", "🍋", "🔔", "🍀", "7️⃣", "💎"];
   List<String> _currentSymbols = ["7️⃣", "7️⃣", "7️⃣"];
   bool _isSpinning = false;
   int _betAmount = 10;
+  String _resultMessage = "";
+  int _lastWin = 0;
+
+  late List<AnimationController> _reelControllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _reelControllers = List.generate(
+      3,
+      (index) => AnimationController(
+        duration: Duration(milliseconds: 1500 + index * 300),
+        vsync: this,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _reelControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   void _spin() async {
     final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
+
     if (provider.balance < _betAmount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
@@ -32,7 +57,11 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
       return;
     }
 
-    setState(() => _isSpinning = true);
+    setState(() {
+      _isSpinning = true;
+      _resultMessage = "";
+      _lastWin = 0;
+    });
 
     final success = await provider.placeBet(_betAmount);
 
@@ -48,17 +77,19 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
 
     final finalSymbols = _determineResult();
 
-    for (int i = 0; i < 20; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (!mounted) return;
-      setState(() {
-        _currentSymbols = [
-          _symbols[Random().nextInt(_symbols.length)],
-          _symbols[Random().nextInt(_symbols.length)],
-          _symbols[Random().nextInt(_symbols.length)],
-        ];
-      });
+    // Start all reel animations
+    for (var controller in _reelControllers) {
+      controller.reset();
+      controller.forward();
     }
+
+    // Animate each reel
+    for (int i = 0; i < 3; i++) {
+      _animateReel(i, finalSymbols[i]);
+    }
+
+    // Wait for all animations to complete
+    await Future.wait(_reelControllers.map((c) => c.forward()));
 
     if (mounted) {
       setState(() {
@@ -67,6 +98,25 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
       });
 
       _checkWin();
+    }
+  }
+
+  void _animateReel(int reelIndex, String finalSymbol) async {
+    final random = Random();
+    int iterations = 15 + reelIndex * 5;
+
+    for (int i = 0; i < iterations; i++) {
+      await Future.delayed(Duration(milliseconds: 50 + (i * 5)));
+      if (!mounted) return;
+      if (i < iterations - 1) {
+        setState(() {
+          _currentSymbols[reelIndex] = _symbols[random.nextInt(_symbols.length)];
+        });
+      } else {
+        setState(() {
+          _currentSymbols[reelIndex] = finalSymbol;
+        });
+      }
     }
   }
 
@@ -105,13 +155,30 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
   void _checkWin() {
     final localization = context.read<LocalizationService>();
     int winAmount = 0;
+    String message = "";
+
     if (_currentSymbols[0] == _currentSymbols[1] && _currentSymbols[1] == _currentSymbols[2]) {
-      if (_currentSymbols[0] == "7️⃣") winAmount = _betAmount * 50;
-      else if (_currentSymbols[0] == "💎") winAmount = _betAmount * 20;
-      else winAmount = _betAmount * 10;
-    } else if (_currentSymbols[0] == _currentSymbols[1] || _currentSymbols[1] == _currentSymbols[2] || _currentSymbols[0] == _currentSymbols[2]) {
+      if (_currentSymbols[0] == "7️⃣") {
+        winAmount = _betAmount * 50;
+        message = localization.translate({'en': '🎉 JACKPOT! 7-7-7!', 'ko': '🎉 잭팟! 7-7-7!'});
+      } else if (_currentSymbols[0] == "💎") {
+        winAmount = _betAmount * 20;
+        message = localization.translate({'en': '💎 DIAMOND WIN!', 'ko': '💎 다이아몬드 당첨!'});
+      } else {
+        winAmount = _betAmount * 10;
+        message = localization.translate({'en': '🎊 THREE OF A KIND!', 'ko': '🎊 트리플 당첨!'});
+      }
+    } else if (_currentSymbols[0] == _currentSymbols[1] ||
+        _currentSymbols[1] == _currentSymbols[2] ||
+        _currentSymbols[0] == _currentSymbols[2]) {
       winAmount = _betAmount * 2;
+      message = localization.translate({'en': '✨ PAIR!', 'ko': '✨ 페어!'});
     }
+
+    setState(() {
+      _lastWin = winAmount;
+      _resultMessage = message;
+    });
 
     if (winAmount > 0) {
       context.read<GameProvider>().winPrize(winAmount);
@@ -124,12 +191,9 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red,
-          content: Text(localization.translate({'en': 'Better luck next time!', 'ko': '다음 기회에!'})),
-        ),
-      );
+      setState(() {
+        _resultMessage = localization.translate({'en': 'Try again!', 'ko': '다시 도전!'});
+      });
     }
   }
 
@@ -150,40 +214,178 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
       ),
       body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Slot Machine Display
-            Expanded(
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade200,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.amber.shade900, width: 8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: _currentSymbols
-                        .map(
-                          (s) => Container(
-                            width: 80,
-                            height: 100,
-                            margin: const EdgeInsets.symmetric(horizontal: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.black12),
-                            ),
-                            child: Center(child: Text(s, style: const TextStyle(fontSize: 50))),
-                          ),
-                        )
-                        .toList(),
-                  ),
+            // Pay table
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    _buildPayItem('7️⃣7️⃣7️⃣', '50x'),
+                    _buildPayItem('💎💎💎', '20x'),
+                    _buildPayItem('3 같은', '10x'),
+                    _buildPayItem('2 같은', '2x'),
+                  ],
                 ),
               ),
             ),
-            
+
+            // Slot Machine Display
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Result message
+                    AnimatedOpacity(
+                      opacity: _resultMessage.isNotEmpty ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: _lastWin > 0 ? Colors.green.shade800 : Colors.grey.shade800,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _resultMessage,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Slot machine
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.amber.shade700,
+                            Colors.amber.shade500,
+                            Colors.amber.shade700,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.amber.shade900, width: 6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.amber.withAlpha(100),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Title
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade800,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              tr({'en': "LUCKY SLOTS", 'ko': "럭키 슬롯"}),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Reels
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.amber.shade800, width: 3),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(3, (index) {
+                                return Container(
+                                  width: 80,
+                                  height: 100,
+                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.grey.shade300,
+                                        Colors.white,
+                                        Colors.grey.shade300,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.grey.shade600, width: 2),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 100),
+                                      child: Text(
+                                        _currentSymbols[index],
+                                        key: ValueKey(_currentSymbols[index] + index.toString()),
+                                        style: const TextStyle(fontSize: 48),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Win amount display
+                    if (_lastWin > 0)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.only(top: 20),
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber.withAlpha(150),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          "+$_lastWin",
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
             // Controls
             Container(
               padding: const EdgeInsets.all(20),
@@ -193,32 +395,102 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(onPressed: _isSpinning ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
-                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
-                      IconButton(onPressed: _isSpinning ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                      IconButton(
+                        onPressed: _isSpinning
+                            ? null
+                            : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                        icon: const Icon(Icons.remove),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade800,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "${tr(AppStrings.bet)}: $_betAmount",
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _isSpinning ? null : () => setState(() => _betAmount += 10),
+                        icon: const Icon(Icons.add),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
                       onPressed: _isSpinning ? null : _spin,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                      child: Text(
-                        tr({'en': 'SPIN', 'ko': '스핀'}),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_isSpinning)
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          else
+                            const Icon(Icons.casino, color: Colors.white, size: 28),
+                          const SizedBox(width: 12),
+                          Text(
+                            _isSpinning
+                                ? tr({'en': 'SPINNING...', 'ko': '스핀 중...'})
+                                : tr({'en': 'SPIN', 'ko': '스핀'}),
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             // Banner Ad
             const BannerAdWidget(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPayItem(String symbols, String payout) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.purple.shade900,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Text(symbols, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            payout,
+            style: const TextStyle(
+              color: Colors.amber,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

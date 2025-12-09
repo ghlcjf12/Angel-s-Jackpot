@@ -381,35 +381,41 @@ TIP: Don't be greedy - cash out in time!''',
 
 HOW TO PLAY:
 • Press DEAL to get 5 cards
-• Select cards to HOLD
+• Tap cards to HOLD them
 • Press DRAW to replace others
 • Make the best poker hand
 
 PAYOUTS:
-• Five of a Kind = 100x
+• Royal Flush = 250x
+• Straight Flush = 50x
 • Four of a Kind = 25x
 • Full House = 9x
+• Flush = 6x
+• Straight = 4x
 • Three of a Kind = 3x
 • Two Pair = 2x
 • Jacks or Better = 1x
 
-TIP: Know your poker hands!''',
+TIP: Hold high cards (J, Q, K, A)!''',
     'ko': '''♠️ 비디오 포커
 
 게임 방법:
 • DEAL을 눌러 5장을 받기
-• 유지할 카드 선택 (HOLD)
+• 유지할 카드를 터치해서 HOLD
 • DRAW로 나머지 교체
 • 최고의 포커 핸드를 만드세요
 
 배당:
-• 파이브 카드 = 100배
+• 로열 플러시 = 250배
+• 스트레이트 플러시 = 50배
 • 포 카드 = 25배
 • 풀 하우스 = 9배
+• 플러시 = 6배
+• 스트레이트 = 4배
 • 트리플 = 3배
 • 투 페어 = 2배
 • 잭 이상 원 페어 = 1배
 
-팁: 포커 족보를 익혀두세요!''',
+팁: 높은 카드(J, Q, K, A)를 홀드하세요!''',
   };
 }
