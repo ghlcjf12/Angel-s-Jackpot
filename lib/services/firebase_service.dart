@@ -18,7 +18,10 @@ class FirebaseService extends ChangeNotifier {
     try {
       if (user == null) {
         await _auth.signInAnonymously();
-        await _initializeUser();
+        // Initialize user asynchronously, don't block login
+        _initializeUser().catchError((e) {
+          debugPrint("User initialization failed (non-blocking): $e");
+        });
       }
     } catch (e) {
       debugPrint("Anonymous Auth Error: $e");
@@ -38,7 +41,10 @@ class FirebaseService extends ChangeNotifier {
       );
 
       await _auth.signInWithCredential(credential);
-      await _initializeUser();
+      // Initialize user asynchronously, don't block login
+      _initializeUser().catchError((e) {
+        debugPrint("User initialization failed (non-blocking): $e");
+      });
       return true;
     } catch (e) {
       debugPrint("Google sign-in failed: $e");
@@ -49,14 +55,21 @@ class FirebaseService extends ChangeNotifier {
   Future<void> _initializeUser() async {
     if (user == null) return;
     final userRef = _db.collection('users').doc(user!.uid);
-    final doc = await userRef.get();
-    if (!doc.exists) {
-      await userRef.set({
-        'uid': user!.uid,
-        'balance': 1000, // Initial coins
-        'totalDonated': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+    try {
+      final doc = await userRef.get();
+      if (!doc.exists) {
+        await userRef.set({
+          'uid': user!.uid,
+          'balance': 1000, // Initial coins
+          'totalDonated': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint("User initialization failed: $e");
+      // User is authenticated but can't write to Firestore
+      // This is likely a security rule issue
+      rethrow;
     }
   }
 

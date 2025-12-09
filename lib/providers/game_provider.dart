@@ -52,13 +52,19 @@ class GameProvider extends ChangeNotifier {
 
   void _refreshUserSubscription() {
     _userSubscription?.cancel();
-    _userSubscription = _firebaseService.getUserStream().listen((snapshot) {
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data() as Map<String, dynamic>;
-        _localBalance = data['balance'] ?? 0;
-        notifyListeners();
-      }
-    });
+    _userSubscription = _firebaseService.getUserStream().listen(
+      (snapshot) {
+        if (snapshot.exists && snapshot.data() != null) {
+          final data = snapshot.data() as Map<String, dynamic>;
+          _localBalance = data['balance'] ?? 0;
+          notifyListeners();
+        }
+      },
+      onError: (error) {
+        debugPrint("User stream error: $error");
+        // Don't crash if Firestore fails, just log it
+      },
+    );
   }
 
   @override
