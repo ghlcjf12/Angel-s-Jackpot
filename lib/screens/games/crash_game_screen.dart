@@ -32,20 +32,46 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
   double _time = 0.0;
 
   double _determineCrashPoint() {
-    // 실제 크래시 게임의 확률 분포 구현
-    // 하우스 엣지 1%를 고려한 지수 분포 (99% RTP)
+    // 더 균형잡힌 크래시 포인트 분포
+    // 하우스 엣지 약 5%를 고려 (95% RTP)
     final random = Random();
     final r = random.nextDouble();
     
-    // 99% RTP를 위한 지수 분포: E = 0.99 / (1 - 1/E)
-    // crashPoint = 0.99 / (1 - r)
-    final crashPoint = 0.99 / (1 - r);
+    // 구간별 분포 (더 다양한 배수가 나오도록)
+    // 5% 확률: 1.00x ~ 1.20x (즉시 크래시)
+    // 15% 확률: 1.20x ~ 1.50x (낮은 배수)
+    // 25% 확률: 1.50x ~ 2.50x (중간 배수)
+    // 25% 확률: 2.50x ~ 5.00x (높은 배수)
+    // 20% 확률: 5.00x ~ 20.00x (고배수)
+    // 8% 확률: 20.00x ~ 100.00x (잭팟)
+    // 2% 확률: 100.00x ~ 500.00x (대박)
     
-    // 현실적인 범위로 제한
-    // - 최소: 1.00x (즉시 크래시도 가능)
-    // - 최대: 1000x (매우 드물게)
-    // - 대부분은 1.0x ~ 3.0x 사이에 분포
-    return crashPoint.clamp(1.00, 1000.0);
+    double crashPoint;
+    
+    if (r < 0.05) {
+      // 5%: 1.00x ~ 1.20x
+      crashPoint = 1.00 + (r / 0.05) * 0.20;
+    } else if (r < 0.20) {
+      // 15%: 1.20x ~ 1.50x
+      crashPoint = 1.20 + ((r - 0.05) / 0.15) * 0.30;
+    } else if (r < 0.45) {
+      // 25%: 1.50x ~ 2.50x
+      crashPoint = 1.50 + ((r - 0.20) / 0.25) * 1.00;
+    } else if (r < 0.70) {
+      // 25%: 2.50x ~ 5.00x
+      crashPoint = 2.50 + ((r - 0.45) / 0.25) * 2.50;
+    } else if (r < 0.90) {
+      // 20%: 5.00x ~ 20.00x
+      crashPoint = 5.00 + ((r - 0.70) / 0.20) * 15.00;
+    } else if (r < 0.98) {
+      // 8%: 20.00x ~ 100.00x
+      crashPoint = 20.00 + ((r - 0.90) / 0.08) * 80.00;
+    } else {
+      // 2%: 100.00x ~ 500.00x
+      crashPoint = 100.00 + ((r - 0.98) / 0.02) * 400.00;
+    }
+    
+    return crashPoint;
   }
 
   void _startGame() async {
