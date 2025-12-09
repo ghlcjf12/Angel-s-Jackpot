@@ -136,14 +136,16 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
       final symbol = _symbols[Random().nextInt(_symbols.length - 2)];
       return [symbol, symbol, symbol];
     } else if (r < 250) {
+      // Create a pair (2 matching symbols)
       final symbol = _symbols[Random().nextInt(_symbols.length)];
-      final otherSymbol = _symbols.where((s) => s != symbol).toList()[Random().nextInt(_symbols.length - 1)];
-      final positions = [0, 1, 2]..shuffle();
-      return [
-        positions[0] < 2 ? symbol : otherSymbol,
-        positions[1] < 2 ? symbol : otherSymbol,
-        positions[2] < 2 ? symbol : otherSymbol,
-      ];
+      final otherSymbols = _symbols.where((s) => s != symbol).toList();
+      final otherSymbol = otherSymbols[Random().nextInt(otherSymbols.length)];
+      
+      // Randomly choose which position gets the different symbol
+      final oddPosition = Random().nextInt(3);
+      List<String> result = [symbol, symbol, symbol];
+      result[oddPosition] = otherSymbol;
+      return result;
     } else {
       List<String> result;
       do {

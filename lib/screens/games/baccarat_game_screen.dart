@@ -71,6 +71,62 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     int playerSum = _calculateSum(_playerHand);
     int bankerSum = _calculateSum(_bankerHand);
 
+    // Natural 8 or 9 - no more cards drawn
+    bool isNatural = playerSum >= 8 || bankerSum >= 8;
+
+    if (!isNatural) {
+      // Third Card Rule for Player
+      int? playerThirdCard;
+      if (playerSum <= 5) {
+        playerThirdCard = _drawCard();
+        setState(() {
+          _playerHand.add(playerThirdCard!);
+        });
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+      }
+
+      // Third Card Rule for Banker
+      if (playerThirdCard == null) {
+        // Player stood, banker draws on 0-5
+        if (bankerSum <= 5) {
+          setState(() {
+            _bankerHand.add(_drawCard());
+          });
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (!mounted) return;
+        }
+      } else {
+        // Player drew third card, banker follows complex rules
+        int p3 = playerThirdCard >= 10 ? 0 : playerThirdCard; // Convert face cards to 0
+        bool bankerDraws = false;
+
+        if (bankerSum <= 2) {
+          bankerDraws = true;
+        } else if (bankerSum == 3 && p3 != 8) {
+          bankerDraws = true;
+        } else if (bankerSum == 4 && p3 >= 2 && p3 <= 7) {
+          bankerDraws = true;
+        } else if (bankerSum == 5 && p3 >= 4 && p3 <= 7) {
+          bankerDraws = true;
+        } else if (bankerSum == 6 && p3 >= 6 && p3 <= 7) {
+          bankerDraws = true;
+        }
+
+        if (bankerDraws) {
+          setState(() {
+            _bankerHand.add(_drawCard());
+          });
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (!mounted) return;
+        }
+      }
+    }
+
+    // Recalculate final sums
+    playerSum = _calculateSum(_playerHand);
+    bankerSum = _calculateSum(_bankerHand);
+
     String winner = "TIE";
     if (playerSum > bankerSum) winner = "PLAYER";
     if (bankerSum > playerSum) winner = "BANKER";

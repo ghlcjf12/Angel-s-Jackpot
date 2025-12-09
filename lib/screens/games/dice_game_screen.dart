@@ -134,15 +134,15 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
       });
 
       if (_lastWin) {
-        provider.winPrize(_betAmount * 5);
+        provider.winPrize(_betAmount * 6);
         context.read<AudioService>().playWinSound();
         setState(() {
-          _resultMessage = localization.translate({'en': '🎉 WIN! +${_betAmount * 5}', 'ko': '🎉 당첨! +${_betAmount * 5}'});
+          _resultMessage = localization.translate({'en': '🎉 WIN! +${_betAmount * 6}', 'ko': '🎉 당첨! +${_betAmount * 6}'});
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.green,
-            content: Text(localization.translate({'en': 'WIN! +${_betAmount * 5} coins', 'ko': '당첨! +${_betAmount * 5} 코인'})),
+            content: Text(localization.translate({'en': 'WIN! +${_betAmount * 6} coins', 'ko': '당첨! +${_betAmount * 6} 코인'})),
           ),
         );
       } else {
