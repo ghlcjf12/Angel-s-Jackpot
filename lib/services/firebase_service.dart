@@ -21,7 +21,8 @@ class FirebaseService extends ChangeNotifier {
         await _initializeUser();
       }
     } catch (e) {
-      debugPrint("Auth Error: $e");
+      debugPrint("Anonymous Auth Error: $e");
+      rethrow;
     }
   }
 

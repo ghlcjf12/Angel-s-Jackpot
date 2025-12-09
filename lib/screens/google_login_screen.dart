@@ -15,21 +15,35 @@ class _GoogleLoginScreenState extends State<GoogleLoginScreen> {
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
-    final success = await context.read<FirebaseService>().signInWithGoogle();
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+    try {
+      final success = await context.read<FirebaseService>().signInWithGoogle();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-    if (!success) {
-      _showMessage("Google 로그인에 실패했습니다. 다시 시도해주세요.");
+      if (!success) {
+        _showMessage("Google 로그인에 실패했습니다. Firebase 설정을 확인하세요.");
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showMessage("오류: ${e.toString()}");
+      }
     }
   }
 
   Future<void> _playAsGuest() async {
     setState(() => _isLoading = true);
-    await context.read<FirebaseService>().signInAnonymously();
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    _showMessage("게스트로 로그인 되었습니다. 즐겁게 플레이 해보세요!");
+    try {
+      await context.read<FirebaseService>().signInAnonymously();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showMessage("게스트로 로그인 되었습니다. 즐겁게 플레이 해보세요!");
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showMessage("게스트 로그인 실패: ${e.toString()}");
+      }
+    }
   }
 
   void _showMessage(String message) {
