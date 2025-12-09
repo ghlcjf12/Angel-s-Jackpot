@@ -10,7 +10,12 @@ class GameProvider extends ChangeNotifier {
   StreamSubscription<DocumentSnapshot>? _userSubscription;
 
   GameProvider(this._firebaseService) {
-    _firebaseService.addListener(_refreshUserSubscription);
+    _firebaseService.addListener(_onFirebaseUserChanged);
+    _refreshUserSubscription();
+  }
+
+  void _onFirebaseUserChanged() {
+    // When Firebase user changes (login/logout), refresh the subscription
     _refreshUserSubscription();
   }
 
@@ -59,7 +64,7 @@ class GameProvider extends ChangeNotifier {
   @override
   void dispose() {
     _userSubscription?.cancel();
-    _firebaseService.removeListener(_refreshUserSubscription);
+    _firebaseService.removeListener(_onFirebaseUserChanged);
     super.dispose();
   }
 }
