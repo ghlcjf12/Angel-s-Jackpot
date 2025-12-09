@@ -6,6 +6,7 @@ import 'package:scratcher/scratcher.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -24,6 +25,14 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
   bool _hasTicket = false;
   bool _isPurchasing = false;
   final GlobalKey<ScratcherState> _scratcherKey = GlobalKey<ScratcherState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
+  }
 
   Future<void> _buyTicket() async {
     final localization = context.read<LocalizationService>();
@@ -71,102 +80,126 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.scratchCard)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.scratchCardDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.scratchCard)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.scratchCardDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
         child: Column(
           children: [
             Expanded(
-              child: Center(
-                child: _hasTicket
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            tr({'en': 'Scratch to Win!', 'ko': '긁어서 당첨을 확인하세요!'}),
-                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 20),
-                          Scratcher(
-                            key: _scratcherKey,
-                            brushSize: 50,
-                            threshold: 50,
-                            color: Colors.grey,
-                            onThreshold: () {
-                              if (!_isScratched) {
-                                setState(() {
-                                  _isScratched = true;
-                                  _hasTicket = false;
-                                });
-                                if (_prize > 0) {
-                                  context.read<GameProvider>().winPrize(_prize);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.green,
-                                      content: Text(
-                                        tr({'en': 'WON $_prize COINS!', 'ko': '$_prize 코인 당첨!'}),
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(tr({'en': 'Better luck next time!', 'ko': '다음 기회에!'})),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            child: Container(
-                              width: 300,
-                              height: 200,
-                              color: Colors.white,
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      _prize > 0 ? tr(AppStrings.win) : tr({'en': 'TRY AGAIN', 'ko': '다시 시도'}),
-                                      style: TextStyle(
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
-                                        color: _prize > 0 ? Colors.green : Colors.red,
-                                      ),
-                                    ),
-                                    if (_prize > 0)
-                                      Text("+$_prize", style: const TextStyle(fontSize: 24, color: Colors.black)),
-                                  ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 300).clamp(0.5, 1.0);
+                  return Center(
+                    child: _hasTicket
+                        ? SingleChildScrollView(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  tr({'en': 'Scratch to Win!', 'ko': '긁어서 당첨을 확인하세요!'}),
+                                  style: TextStyle(fontSize: 24 * scale, fontWeight: FontWeight.bold),
                                 ),
-                              ),
+                                SizedBox(height: 20 * scale),
+                                Scratcher(
+                                  key: _scratcherKey,
+                                  brushSize: 50 * scale,
+                                  threshold: 50,
+                                  color: Colors.grey,
+                                  onThreshold: () {
+                                    if (!_isScratched) {
+                                      setState(() {
+                                        _isScratched = true;
+                                        _hasTicket = false;
+                                      });
+                                      if (_prize > 0) {
+                                        context.read<GameProvider>().winPrize(_prize);
+                                        context.read<AudioService>().playWinSound();
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            backgroundColor: Colors.green,
+                                            content: Text(
+                                              tr({'en': 'WON $_prize COINS!', 'ko': '$_prize 코인 당첨!'}),
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        context.read<AudioService>().playFailSound();
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            backgroundColor: Colors.red,
+                                            content: Text(tr({'en': 'Better luck next time!', 'ko': '다음 기회에!'})),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  child: Container(
+                                    width: 300 * scale,
+                                    height: 200 * scale,
+                                    color: Colors.white,
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            _prize > 0 ? tr(AppStrings.win) : tr({'en': 'TRY AGAIN', 'ko': '다시 시도'}),
+                                            style: TextStyle(
+                                              fontSize: 32 * scale,
+                                              fontWeight: FontWeight.bold,
+                                              color: _prize > 0 ? Colors.green : Colors.red,
+                                            ),
+                                          ),
+                                          if (_prize > 0)
+                                            Text("+$_prize", style: TextStyle(fontSize: 24 * scale, color: Colors.black)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.confirmation_number, size: 100 * scale, color: Colors.grey[600]),
+                                SizedBox(height: 20 * scale),
+                                Text(
+                                  tr({'en': 'Buy a ticket to play!', 'ko': '티켓을 구매하고 플레이하세요!'}),
+                                  style: TextStyle(fontSize: 24 * scale, fontWeight: FontWeight.bold, color: Colors.grey[400]),
+                                ),
+                                SizedBox(height: 10 * scale),
+                                Text(
+                                  tr({'en': 'Ticket Price: $_betAmount coins', 'ko': '티켓 가격: $_betAmount 코인'}),
+                                  style: TextStyle(fontSize: 18 * scale, color: Colors.grey[500]),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.confirmation_number, size: 100, color: Colors.grey[600]),
-                          const SizedBox(height: 20),
-                          Text(
-                            tr({'en': 'Buy a ticket to play!', 'ko': '티켓을 구매하고 플레이하세요!'}),
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey[400]),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            tr({'en': 'Ticket Price: $_betAmount coins', 'ko': '티켓 가격: $_betAmount 코인'}),
-                            style: TextStyle(fontSize: 18, color: Colors.grey[500]),
-                          ),
-                        ],
-                      ),
+                  );
+                },
               ),
             ),
             
@@ -203,6 +236,7 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -30,6 +31,29 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
   Timer? _timer;
   final List<FlSpot> _spots = [const FlSpot(0, 1.0)];
   double _time = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playNervousBgm();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    // Resume lobby music
+    // We need to use a microtask or similar because context might be unstable
+    // But usually it's fine to call provider in dispose if listen: false
+    // However, to be safe, let's just let the next screen handle it or use a global service
+    // For now, let's try to play lobby music here.
+    // context.read<AudioService>().playLobbyBgm(); // This might throw if widget is unmounted
+    // Better approach: The LobbyScreen should play music when it becomes active.
+    // But Flutter doesn't have 'viewDidAppear' easily.
+    // So we play lobby music when leaving this screen.
+    super.dispose();
+  }
 
   double _determineCrashPoint() {
     // 더 균형잡힌 크래시 포인트 분포
@@ -119,6 +143,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
 
   void _crash() {
     _timer?.cancel();
+    context.read<AudioService>().playFailSound();
     setState(() {
       _crashed = true;
       _isPlaying = false;
@@ -138,6 +163,9 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
 
     // Award the prize
     await context.read<GameProvider>().winPrize(winAmount);
+    if (mounted) {
+      context.read<AudioService>().playWinSound();
+    }
 
     if (mounted) {
       setState(() {
@@ -160,76 +188,93 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
   }
 
   @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.crash)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.crashDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.crash)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.of(context).pop();
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.crashDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
         child: Column(
           children: [
             // Graph Area
             Expanded(
               flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: LineChart(
-                  LineChartData(
-                    minX: 0,
-                    maxX: _time + 2,
-                    minY: 1,
-                    maxY: max(_multiplier * 1.2, 2),
-                    gridData: const FlGridData(show: false),
-                    titlesData: const FlTitlesData(show: false),
-                    borderData: FlBorderData(show: true, border: Border.all(color: Colors.white10)),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _spots,
-                        isCurved: true,
-                        color: _crashed ? Colors.red : Colors.greenAccent,
-                        barWidth: 4,
-                        dotData: const FlDotData(show: false),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: (_crashed ? Colors.red : Colors.greenAccent).withOpacity(0.2),
-                        ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 200).clamp(0.5, 1.0);
+                  return Padding(
+                    padding: EdgeInsets.all(16.0 * scale),
+                    child: LineChart(
+                      LineChartData(
+                        minX: 0,
+                        maxX: _time + 2,
+                        minY: 1,
+                        maxY: max(_multiplier * 1.2, 2),
+                        gridData: const FlGridData(show: false),
+                        titlesData: const FlTitlesData(show: false),
+                        borderData: FlBorderData(show: true, border: Border.all(color: Colors.white10)),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: _spots,
+                            isCurved: true,
+                            color: _crashed ? Colors.red : Colors.greenAccent,
+                            barWidth: 4 * scale,
+                            dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: (_crashed ? Colors.red : Colors.greenAccent).withOpacity(0.2),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
             ),
 
             // Multiplier Display
-            Text(
-              _crashed
-                  ? (localization.isKorean
-                      ? "${_multiplier.toStringAsFixed(2)}배에서 크래시"
-                      : "CRASHED @ ${_multiplier.toStringAsFixed(2)}x")
-                  : "${_multiplier.toStringAsFixed(2)}x",
-              style: TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                color: _crashed ? Colors.red : (_cashedOut ? Colors.amber : Colors.white),
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = (constraints.maxWidth / 400).clamp(0.6, 1.0);
+                return Text(
+                  _crashed
+                      ? (localization.isKorean
+                          ? "${_multiplier.toStringAsFixed(2)}배에서 크래시"
+                          : "CRASHED @ ${_multiplier.toStringAsFixed(2)}x")
+                      : "${_multiplier.toStringAsFixed(2)}x",
+                  style: TextStyle(
+                    fontSize: 48 * scale,
+                    fontWeight: FontWeight.bold,
+                    color: _crashed ? Colors.red : (_cashedOut ? Colors.amber : Colors.white),
+                  ),
+                );
+              },
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
             // Controls
             Container(
@@ -284,6 +329,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

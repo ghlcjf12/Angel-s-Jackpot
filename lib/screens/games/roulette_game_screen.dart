@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -42,6 +43,9 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
   }
 
   @override
@@ -80,8 +84,15 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
       _finalColor = _redNumbers.contains(_finalResult) ? "RED" : "BLACK";
     }
 
-    final double targetAngle = (_finalResult! * 2 * pi / 37);
-    final double totalRotation = 4 * pi + targetAngle;
+    // Find the index of the result number in the wheel
+    final int resultIndex = _wheelNumbers.indexOf(_finalResult!);
+    // Calculate angle so that the result aligns with the top pointer
+    // Each segment is 2*pi/37, and we need to rotate so that the target segment is at the top
+    final double segmentAngle = 2 * pi / 37;
+    // The pointer is at the top (12 o'clock), wheel segments start at -pi/2 (top)
+    // We need to rotate the wheel so that the target segment's center is at the top
+    final double targetAngle = resultIndex * segmentAngle + segmentAngle / 2;
+    final double totalRotation = 4 * pi + (2 * pi - targetAngle);
 
     final animation = Tween<double>(
       begin: 0,
@@ -127,11 +138,13 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
 
     if (win) {
       context.read<GameProvider>().winPrize(_betAmount * multiplier);
+      context.read<AudioService>().playWinSound();
       _showResultDialog(
         "${localization.translate(AppStrings.win)} $colorLabel $_finalResult",
         localization.translate({'en': 'You won ${_betAmount * multiplier} coins!', 'ko': '${_betAmount * multiplier} 코인 당첨!'}),
       );
     } else {
+      context.read<AudioService>().playFailSound();
       _showResultDialog(
         "${localization.translate(AppStrings.lose)} $colorLabel $_finalResult",
         localization.translate({'en': 'Better luck next time.', 'ko': '다음 기회에.'}),
@@ -164,66 +177,92 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.roulette)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.rouletteDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.roulette)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.rouletteDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
         child: Column(
           children: [
             // Wheel Area
             Expanded(
-              child: Center(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Spinning wheel
-                    Transform.rotate(
-                      angle: _angle,
-                      child: CustomPaint(
-                        size: const Size(280, 280),
-                        painter: _RouletteWheelPainter(),
-                      ),
-                    ),
-                    // Ball indicator (stationary pointer at top)
-                    Positioned(
-                      top: 0,
-                      child: Container(
-                        width: 20,
-                        height: 30,
-                        decoration: const BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
-                        ),
-                      ),
-                    ),
-                    // Center hub
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.amber.shade800,
-                        border: Border.all(color: Colors.amber, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            blurRadius: 10,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // 가용 공간에 맞춰 전체 비율 유지하면서 축소
+                  final availableSize = min(constraints.maxWidth, constraints.maxHeight);
+                  final scale = (availableSize / 300).clamp(0.6, 1.0);
+                  final wheelSize = 280 * scale;
+                  final hubSize = 60 * scale;
+                  final arrowWidth = 10 * scale;
+                  final arrowHeight = 16 * scale;
+                  final arrowTop = 8 * scale;
+                  
+                  return Center(
+                    child: SizedBox(
+                      width: wheelSize,
+                      height: wheelSize,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Spinning wheel
+                          Transform.rotate(
+                            angle: _angle,
+                            child: CustomPaint(
+                              size: Size(wheelSize, wheelSize),
+                              painter: _RouletteWheelPainter(),
+                            ),
+                          ),
+                          // Ball indicator (stationary pointer at top)
+                          Positioned(
+                            top: arrowTop,
+                            child: CustomPaint(
+                              size: Size(arrowWidth, arrowHeight),
+                              painter: _ArrowPainter(),
+                            ),
+                          ),
+                          // Center hub
+                          Container(
+                            width: hubSize,
+                            height: hubSize,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.amber.shade800,
+                              border: Border.all(color: Colors.amber, width: 3 * scale),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.5),
+                                  blurRadius: 10 * scale,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Icon(Icons.casino, color: Colors.white, size: 30 * scale),
+                            ),
                           ),
                         ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.casino, color: Colors.white, size: 30),
-                      ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
             
@@ -282,6 +321,7 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -311,6 +351,45 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
         return localization.translate({'en': 'GREEN', 'ko': '초록'});
     }
   }
+}
+
+class _ArrowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.amber
+      ..style = PaintingStyle.fill;
+    
+    final shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+    
+    final path = Path();
+    // Sharp pointed arrow shape
+    path.moveTo(size.width / 2, size.height); // Bottom point (sharp tip)
+    path.lineTo(0, 0); // Top left
+    path.lineTo(size.width, 0); // Top right
+    path.close();
+    
+    // Draw shadow
+    canvas.save();
+    canvas.translate(2, 2);
+    canvas.drawPath(path, shadowPaint);
+    canvas.restore();
+    
+    // Draw arrow
+    canvas.drawPath(path, paint);
+    
+    // Draw border
+    final borderPaint = Paint()
+      ..color = Colors.amber.shade800
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _RouletteWheelPainter extends CustomPainter {

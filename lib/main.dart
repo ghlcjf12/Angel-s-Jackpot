@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/firebase_service.dart';
 import 'services/localization_service.dart';
+import 'services/audio_service.dart';
 import 'providers/game_provider.dart';
 import 'screens/lobby_screen.dart';
 import 'screens/google_login_screen.dart';
@@ -37,6 +38,7 @@ class MyApp extends StatelessWidget {
 
   final FirebaseService _firebaseService = FirebaseService();
   final LocalizationService _localizationService = LocalizationService();
+  final AudioService _audioService = AudioService();
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +46,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: _firebaseService),
         ChangeNotifierProvider.value(value: _localizationService),
+        ChangeNotifierProvider.value(value: _audioService),
         ChangeNotifierProvider<GameProvider>(
           create: (context) => GameProvider(context.read<FirebaseService>()),
         ),

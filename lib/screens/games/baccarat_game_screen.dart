@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -24,6 +25,14 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
   List<int> _playerHand = [];
   List<int> _bankerHand = [];
   String _resultMessage = "Place your bet";
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
+  }
 
   void _deal() async {
     if (_isDealing) return;
@@ -86,10 +95,12 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
 
       if (win) {
         provider.winPrize((_betAmount * multiplier).toInt());
+        context.read<AudioService>().playWinSound();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(backgroundColor: Colors.green, content: Text(localization.translate(AppStrings.win))),
         );
       } else {
+        context.read<AudioService>().playFailSound();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(backgroundColor: Colors.red, content: Text(localization.translate(AppStrings.lose))),
         );
@@ -117,39 +128,63 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.baccarat)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.baccaratDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.baccarat)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.baccaratDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
         child: Column(
           children: [
             // Game Area
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildHand(tr({'en': 'BANKER', 'ko': '뱅커'}), _bankerHand),
-                  Text(
-                    _resultMessage == "Place your bet"
-                        ? tr({'en': 'Place your bet', 'ko': '베팅하세요'})
-                        : _resultMessage,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber),
-                  ),
-                  _buildHand(tr({'en': 'PLAYER', 'ko': '플레이어'}), _playerHand),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 320).clamp(0.4, 1.0);
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHand(tr({'en': 'BANKER', 'ko': '뱅커'}), _bankerHand, scale),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6 * scale),
+                          child: Text(
+                            _resultMessage == "Place your bet"
+                                ? tr({'en': 'Place your bet', 'ko': '베팅하세요'})
+                                : _resultMessage,
+                            style: TextStyle(fontSize: 18 * scale, fontWeight: FontWeight.bold, color: Colors.amber),
+                          ),
+                        ),
+                        _buildHand(tr({'en': 'PLAYER', 'ko': '플레이어'}), _playerHand, scale),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
             
             // Controls
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               color: const Color(0xFF252525),
               child: Column(
                 children: [
@@ -160,14 +195,14 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                         onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
                         icon: const Icon(Icons.remove),
                       ),
-                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
+                      Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 22)),
                       IconButton(
                         onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
                         icon: const Icon(Icons.add),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       _buildBetOption(tr({'en': 'PLAYER', 'ko': '플레이어'}), "PLAYER", Colors.blue),
@@ -177,10 +212,10 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                       _buildBetOption(tr({'en': 'BANKER', 'ko': '뱅커'}), "BANKER", Colors.red),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
-                    height: 60,
+                    height: 50,
                     child: ElevatedButton(
                       onPressed: _isDealing ? null : _deal,
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
@@ -188,7 +223,7 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                         _isDealing
                             ? tr({'en': 'DEALING...', 'ko': '딜링 중...'})
                             : tr({'en': 'DEAL', 'ko': '딜'}),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
                   ),
@@ -201,6 +236,7 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -223,22 +259,25 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     );
   }
 
-  Widget _buildHand(String label, List<int> hand) {
+  Widget _buildHand(String label, List<int> hand, double scale) {
     return Column(
       children: [
-        Text("$label (${_calculateSum(hand)})", style: const TextStyle(fontSize: 18, color: Colors.grey)),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: hand.isEmpty 
-              ? [const SizedBox(height: 90)] 
-              : hand.map((c) => _buildCard(c)).toList(),
+        Text("$label (${_calculateSum(hand)})", style: TextStyle(fontSize: 18 * scale, color: Colors.grey)),
+        SizedBox(height: 10 * scale),
+        SizedBox(
+          height: 98 * scale, // 90 + margin
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: hand.isEmpty 
+                ? [SizedBox(width: 68 * scale, height: 90 * scale)] 
+                : hand.map((c) => _buildCard(c, scale)).toList(),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildCard(int value) {
+  Widget _buildCard(int value, double scale) {
     String label = value.toString();
     if (value == 1) label = "A";
     if (value == 11) label = "J";
@@ -246,14 +285,14 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     if (value == 13) label = "K";
     
     return Container(
-      width: 60,
-      height: 90,
-      margin: const EdgeInsets.all(4),
+      width: 60 * scale,
+      height: 90 * scale,
+      margin: EdgeInsets.all(4 * scale),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8 * scale),
       ),
-      child: Center(child: Text(label, style: const TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold))),
+      child: Center(child: Text(label, style: TextStyle(color: Colors.black, fontSize: 24 * scale, fontWeight: FontWeight.bold))),
     );
   }
 

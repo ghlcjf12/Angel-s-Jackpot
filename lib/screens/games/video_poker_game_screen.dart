@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -101,6 +102,9 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
   void initState() {
     super.initState();
     _deck = Deck();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
   }
 
   Future<void> _deal() async {
@@ -168,11 +172,13 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
 
     if (winAmount > 0) {
       context.read<GameProvider>().winPrize(winAmount);
+      context.read<AudioService>().playWinSound();
       setState(() {
         _message = "${localization.translate(AppStrings.win)} $handName (+$winAmount)";
         _handRank = handName;
       });
     } else {
+      context.read<AudioService>().playFailSound();
       setState(() {
         _message = handName;
         _handRank = handName;
@@ -278,27 +284,40 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.videoPoker)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.videoPokerDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.videoPoker)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Pay table
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildPayItem('RF', '250x', _handRank.contains('ROYAL')),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.videoPokerDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Pay table
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildPayItem('RF', '250x', _handRank.contains('ROYAL')),
                     _buildPayItem('SF', '50x', _handRank.contains('Straight Flush')),
                     _buildPayItem('4K', '25x', _handRank.contains('Four')),
                     _buildPayItem('FH', '9x', _handRank.contains('Full')),
@@ -314,45 +333,53 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
 
             // Hand Area
             Expanded(
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: _hand.isEmpty
-                      ? [Text(tr({'en': 'Press DEAL', 'ko': '딜을 눌러 시작'}))]
-                      : _hand.asMap().entries.map((entry) {
-                          int idx = entry.key;
-                          PlayingCard card = entry.value;
-                          return GestureDetector(
-                            onTap: (_isFirstDeal || _isDealing) ? null : () => setState(() => _held[idx] = !_held[idx]),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              transform: Matrix4.translationValues(0, _held[idx] ? -10 : 0, 0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _buildCard(card, _held[idx]),
-                                  const SizedBox(height: 5),
-                                  AnimatedOpacity(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 180).clamp(0.5, 1.0);
+                  return Center(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: _hand.isEmpty
+                            ? [Text(tr({'en': 'Press DEAL', 'ko': '딜을 눌러 시작'}), style: TextStyle(fontSize: 16 * scale))]
+                            : _hand.asMap().entries.map((entry) {
+                                int idx = entry.key;
+                                PlayingCard card = entry.value;
+                                return GestureDetector(
+                                  onTap: (_isFirstDeal || _isDealing) ? null : () => setState(() => _held[idx] = !_held[idx]),
+                                  child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
-                                    opacity: _held[idx] ? 1.0 : 0.0,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        tr({'en': 'HELD', 'ko': '홀드'}),
-                                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12),
-                                      ),
+                                    transform: Matrix4.translationValues(0, _held[idx] ? -10 * scale : 0, 0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildCard(card, _held[idx], scale),
+                                        SizedBox(height: 5 * scale),
+                                        AnimatedOpacity(
+                                          duration: const Duration(milliseconds: 200),
+                                          opacity: _held[idx] ? 1.0 : 0.0,
+                                          child: Container(
+                                            padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 2 * scale),
+                                            decoration: BoxDecoration(
+                                              color: Colors.amber,
+                                              borderRadius: BorderRadius.circular(4 * scale),
+                                            ),
+                                            child: Text(
+                                              tr({'en': 'HELD', 'ko': '홀드'}),
+                                              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12 * scale),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                ),
+                                );
+                              }).toList(),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -363,14 +390,14 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                     ? tr({'en': 'Press DEAL to start', 'ko': '딜을 눌러 시작하세요'})
                     : _message,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   color: _message.contains('WIN') ? Colors.green : Colors.amber,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
 
             // Controls
             Container(
@@ -415,6 +442,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -442,23 +470,23 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
     );
   }
 
-  Widget _buildCard(PlayingCard card, bool isHeld) {
+  Widget _buildCard(PlayingCard card, bool isHeld, double scale) {
     return Container(
-      width: 55,
-      height: 80,
-      margin: const EdgeInsets.all(3),
+      width: 55 * scale,
+      height: 80 * scale,
+      margin: EdgeInsets.all(3 * scale),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8 * scale),
         border: Border.all(
           color: isHeld ? Colors.amber : Colors.grey.shade400,
-          width: isHeld ? 3 : 1,
+          width: isHeld ? 3 * scale : 1 * scale,
         ),
         boxShadow: [
           BoxShadow(
             color: isHeld ? Colors.amber.withOpacity(0.5) : Colors.black26,
-            blurRadius: isHeld ? 8 : 4,
-            offset: const Offset(0, 2),
+            blurRadius: (isHeld ? 8 : 4) * scale,
+            offset: Offset(0, 2 * scale),
           ),
         ],
       ),
@@ -466,8 +494,8 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
         children: [
           // Top left rank and suit
           Positioned(
-            top: 4,
-            left: 4,
+            top: 4 * scale,
+            left: 4 * scale,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -475,7 +503,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                   card.rankLabel,
                   style: TextStyle(
                     color: card.suitColor,
-                    fontSize: 14,
+                    fontSize: 14 * scale,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -483,7 +511,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                   card.suitLabel,
                   style: TextStyle(
                     color: card.suitColor,
-                    fontSize: 12,
+                    fontSize: 12 * scale,
                   ),
                 ),
               ],
@@ -495,14 +523,14 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
               card.suitLabel,
               style: TextStyle(
                 color: card.suitColor,
-                fontSize: 24,
+                fontSize: 24 * scale,
               ),
             ),
           ),
           // Bottom right (inverted)
           Positioned(
-            bottom: 4,
-            right: 4,
+            bottom: 4 * scale,
+            right: 4 * scale,
             child: Transform.rotate(
               angle: 3.14159,
               child: Column(
@@ -512,7 +540,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                     card.rankLabel,
                     style: TextStyle(
                       color: card.suitColor,
-                      fontSize: 14,
+                      fontSize: 14 * scale,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -520,7 +548,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                     card.suitLabel,
                     style: TextStyle(
                       color: card.suitColor,
-                      fontSize: 12,
+                      fontSize: 12 * scale,
                     ),
                   ),
                 ],

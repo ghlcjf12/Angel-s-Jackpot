@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -37,6 +38,9 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
     _shakeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
   }
 
   @override
@@ -131,6 +135,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
 
       if (_lastWin) {
         provider.winPrize(_betAmount * 5);
+        context.read<AudioService>().playWinSound();
         setState(() {
           _resultMessage = localization.translate({'en': '🎉 WIN! +${_betAmount * 5}', 'ko': '🎉 당첨! +${_betAmount * 5}'});
         });
@@ -141,6 +146,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
           ),
         );
       } else {
+        context.read<AudioService>().playFailSound();
         setState(() {
           _resultMessage = localization.translate({'en': 'Try again!', 'ko': '다시 도전!'});
         });
@@ -159,24 +165,37 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.dice)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.diceDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.dice)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.diceDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
         child: Column(
           children: [
             // Payout info
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.teal.shade900,
                   borderRadius: BorderRadius.circular(20),
@@ -186,113 +205,121 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
               ),
             ),
 
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Result message
-                    AnimatedOpacity(
-                      opacity: _resultMessage.isNotEmpty ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(
-                          color: _lastWin ? Colors.green.shade800 : Colors.grey.shade800,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _resultMessage,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Dice
-                    AnimatedBuilder(
-                      animation: _shakeAnimation,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(
-                            sin(_shakeAnimation.value * pi * 8) * 10 * (1 - _shakeAnimation.value),
-                            0,
-                          ),
-                          child: Transform.rotate(
-                            angle: _isRolling ? sin(_shakeAnimation.value * pi * 4) * 0.3 : 0,
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _lastWin && !_isRolling
-                                  ? Colors.green.withAlpha(150)
-                                  : Colors.black38,
-                              blurRadius: _lastWin && !_isRolling ? 20 : 15,
-                              spreadRadius: _lastWin && !_isRolling ? 5 : 2,
-                            ),
-                          ],
-                          border: Border.all(
-                            color: _lastWin && !_isRolling ? Colors.green : Colors.grey.shade400,
-                            width: 3,
-                          ),
-                        ),
-                        child: Stack(
-                          children: _getDiceDots(_result).map((offset) {
-                            return Positioned(
-                              left: offset.dx * 140 - 12,
-                              top: offset.dy * 140 - 12,
-                              child: Container(
-                                width: 24,
-                                height: 24,
-                                decoration: const BoxDecoration(
-                                  color: Colors.black,
-                                  shape: BoxShape.circle,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 300).clamp(0.5, 1.0);
+                  return Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Result message
+                          AnimatedOpacity(
+                            opacity: _resultMessage.isNotEmpty ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 24 * scale, vertical: 12 * scale),
+                              margin: EdgeInsets.only(bottom: 20 * scale),
+                              decoration: BoxDecoration(
+                                color: _lastWin ? Colors.green.shade800 : Colors.grey.shade800,
+                                borderRadius: BorderRadius.circular(20 * scale),
+                              ),
+                              child: Text(
+                                _resultMessage,
+                                style: TextStyle(
+                                  fontSize: 18 * scale,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
                                 ),
                               ),
-                            );
-                          }).toList(),
-                        ),
+                            ),
+                          ),
+
+                          // Dice
+                          AnimatedBuilder(
+                            animation: _shakeAnimation,
+                            builder: (context, child) {
+                              return Transform.translate(
+                                offset: Offset(
+                                  sin(_shakeAnimation.value * pi * 8) * 10 * (1 - _shakeAnimation.value),
+                                  0,
+                                ),
+                                child: Transform.rotate(
+                                  angle: _isRolling ? sin(_shakeAnimation.value * pi * 4) * 0.3 : 0,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 140 * scale,
+                              height: 140 * scale,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20 * scale),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _lastWin && !_isRolling
+                                        ? Colors.green.withAlpha(150)
+                                        : Colors.black38,
+                                    blurRadius: (_lastWin && !_isRolling ? 20 : 15) * scale,
+                                    spreadRadius: (_lastWin && !_isRolling ? 5 : 2) * scale,
+                                  ),
+                                ],
+                                border: Border.all(
+                                  color: _lastWin && !_isRolling ? Colors.green : Colors.grey.shade400,
+                                  width: 3 * scale,
+                                ),
+                              ),
+                              child: Stack(
+                                children: _getDiceDots(_result).map((offset) {
+                                  return Positioned(
+                                    left: offset.dx * 140 * scale - 12 * scale,
+                                    top: offset.dy * 140 * scale - 12 * scale,
+                                    child: Container(
+                                      width: 24 * scale,
+                                      height: 24 * scale,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+
+                          SizedBox(height: 30 * scale),
+
+                          // Selected number indicator
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 20 * scale, vertical: 10 * scale),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withAlpha(50),
+                              borderRadius: BorderRadius.circular(12 * scale),
+                              border: Border.all(color: Colors.amber, width: 2 * scale),
+                            ),
+                            child: Text(
+                              "${tr({'en': 'Your pick', 'ko': '선택'})}:  $_selectedNumber",
+                              style: TextStyle(
+                                fontSize: 20 * scale,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-
-                    const SizedBox(height: 30),
-
-                    // Selected number indicator
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withAlpha(50),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber, width: 2),
-                      ),
-                      child: Text(
-                        "${tr({'en': 'Your pick', 'ko': '선택'})}:  $_selectedNumber",
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
 
@@ -413,6 +440,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
           ],
         ),
       ),
+    ),
     );
   }
 }

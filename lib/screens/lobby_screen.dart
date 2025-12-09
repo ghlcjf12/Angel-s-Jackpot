@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_strings.dart';
 import '../providers/game_provider.dart';
 import '../services/ad_service.dart';
+import '../services/audio_service.dart';
 import '../services/localization_service.dart';
 import '../widgets/banner_ad_widget.dart';
 import 'donation_ranking_screen.dart';
@@ -18,8 +19,22 @@ import 'games/scratch_card_game_screen.dart';
 import 'games/slots_game_screen.dart';
 import 'games/video_poker_game_screen.dart';
 
-class LobbyScreen extends StatelessWidget {
+class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
+
+  @override
+  State<LobbyScreen> createState() => _LobbyScreenState();
+}
+
+class _LobbyScreenState extends State<LobbyScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Play lobby music when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playLobbyBgm();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +142,25 @@ class LobbyScreen extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 42, maxWidth: 42, minHeight: _headerButtonHeight),
+                        child: Consumer<AudioService>(
+                          builder: (context, audio, child) {
+                            return IconButton(
+                              onPressed: () => audio.toggleBgm(),
+                              icon: Icon(
+                                audio.isBgmEnabled ? Icons.music_note : Icons.music_off,
+                                color: Colors.amber,
+                              ),
+                              style: IconButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],

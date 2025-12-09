@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -21,6 +22,14 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
   String _selected = "HEADS";
   String _result = "HEADS";
   bool _isFlipping = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
+  }
 
   void _flip() async {
     final localization = context.read<LocalizationService>();
@@ -61,8 +70,10 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
 
       if (_selected == _result) {
         provider.winPrize(_betAmount * 2);
+        context.read<AudioService>().playWinSound();
         _showSnack(localization.translate({'en': 'WIN! +${_betAmount * 2} coins', 'ko': '당첨! +${_betAmount * 2} 코인'}), Colors.green);
       } else {
+        context.read<AudioService>().playFailSound();
         _showSnack(localization.translate({'en': 'LOSE - Try again!', 'ko': '패배 - 다시 시도!'}), Colors.red);
       }
     }
@@ -77,36 +88,56 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.coinFlip)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.coinFlipDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.coinFlip)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.coinFlipDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
         child: Column(
           children: [
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.yellow.shade700,
-                      child: Text(
-                        _displayFace(_result, localization),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 180).clamp(0.5, 1.0);
+                  return Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 60 * scale,
+                            backgroundColor: Colors.yellow.shade700,
+                            child: Text(
+                              _displayFace(_result, localization),
+                              style: TextStyle(fontSize: 24 * scale, fontWeight: FontWeight.bold, color: Colors.black),
+                            ),
+                          ),
+                          SizedBox(height: 20 * scale),
+                          Text(tr({'en': 'Choose Heads or Tails', 'ko': '앞면/뒷면을 선택하세요'}), style: TextStyle(fontSize: 14 * scale)),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    Text(tr({'en': 'Choose Heads or Tails', 'ko': '앞면/뒷면을 선택하세요'})),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
             
@@ -154,6 +185,7 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

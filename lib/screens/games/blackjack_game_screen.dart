@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../widgets/how_to_play_dialog.dart';
@@ -101,6 +102,9 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
   void initState() {
     super.initState();
     _deck = _Deck();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AudioService>().playGameBgm();
+    });
   }
 
   void _startGame() async {
@@ -220,6 +224,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     if (win == true) {
       _message = localization.translate({'en': 'YOU WIN!', 'ko': '승리!'});
       context.read<GameProvider>().winPrize(_betAmount * 2);
+      context.read<AudioService>().playWinSound();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.green,
@@ -231,6 +236,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
       );
     } else if (win == false) {
       _message = localization.translate({'en': 'YOU LOSE!', 'ko': '패배!'});
+      context.read<AudioService>().playFailSound();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.red,
@@ -260,74 +266,92 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     final localization = context.watch<LocalizationService>();
     String tr(Map<String, String> value) => localization.translate(value);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr(AppStrings.blackjack)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.amber),
-            onPressed: () => showHowToPlayDialog(context, AppStrings.blackjackDescription),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          context.read<AudioService>().playLobbyBgm();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(tr(AppStrings.blackjack)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              context.read<AudioService>().playLobbyBgm();
+              Navigator.pop(context);
+            },
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Dealer Area
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.green.shade900,
-                      Colors.green.shade800,
-                    ],
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.amber),
+              onPressed: () => showHowToPlayDialog(context, AppStrings.blackjackDescription),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Dealer Area
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final scale = (constraints.maxHeight / 130).clamp(0.4, 1.0);
+                    return Container(
+                      width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.black38,
-                        borderRadius: BorderRadius.circular(20),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.green.shade900,
+                            Colors.green.shade800,
+                          ],
+                        ),
                       ),
-                      child: Text(
-                        "${tr({'en': 'Dealer', 'ko': '딜러'})}: ${_isStand ? _calculateScore(_dealerHand) : "?"}",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    SizedBox(
-                      height: 100,
-                      child: Row(
+                      child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: _dealerHand.asMap().entries.map((entry) {
-                          int idx = entry.key;
-                          _PlayingCard card = entry.value;
-                          if (!_isStand && idx == 1) return _buildCardBack();
-                          return _buildCard(card);
-                        }).toList(),
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
+                            decoration: BoxDecoration(
+                              color: Colors.black38,
+                              borderRadius: BorderRadius.circular(16 * scale),
+                            ),
+                            child: Text(
+                              "${tr({'en': 'Dealer', 'ko': '딜러'})}: ${_isStand ? _calculateScore(_dealerHand) : "?"}",
+                              style: TextStyle(fontSize: 16 * scale, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          SizedBox(height: 8 * scale),
+                          SizedBox(
+                            height: 80 * scale,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: _dealerHand.asMap().entries.map((entry) {
+                                int idx = entry.key;
+                                _PlayingCard card = entry.value;
+                                if (!_isStand && idx == 1) return _buildCardBack(scale);
+                                return _buildCard(card, scale);
+                              }).toList(),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
-            ),
 
             // Message
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               color: Colors.black54,
               child: Text(
                 _message == "Place your bet" ? tr({'en': 'Place your bet', 'ko': '베팅하세요'}) : _message,
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: _message.contains('WIN') ? Colors.green : (_message.contains('LOSE') ? Colors.red : Colors.amber),
                 ),
@@ -337,51 +361,56 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
 
             // Player Area
             Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.green.shade800,
-                      Colors.green.shade900,
-                    ],
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black38,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "${tr({'en': 'You', 'ko': '플레이어'})}: ${_calculateScore(_playerHand)}",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = (constraints.maxHeight / 130).clamp(0.4, 1.0);
+                  return Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.green.shade800,
+                          Colors.green.shade900,
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 15),
-                    SizedBox(
-                      height: 100,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: _playerHand.map((c) => _buildCard(c)).toList(),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
+                          decoration: BoxDecoration(
+                            color: Colors.black38,
+                            borderRadius: BorderRadius.circular(16 * scale),
+                          ),
+                          child: Text(
+                            "${tr({'en': 'You', 'ko': '플레이어'})}: ${_calculateScore(_playerHand)}",
+                            style: TextStyle(fontSize: 16 * scale, fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
+                        SizedBox(height: 8 * scale),
+                        SizedBox(
+                          height: 80 * scale,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: _playerHand.map((c) => _buildCard(c, scale)).toList(),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
 
             // Controls
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               color: const Color(0xFF252525),
               child: Column(
                 children: [
@@ -393,17 +422,17 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                           onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
                           icon: const Icon(Icons.remove),
                         ),
-                        Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
+                        Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 20)),
                         IconButton(
                           onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
                           icon: const Icon(Icons.add),
                         ),
                       ],
                     ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    height: 60,
+                    height: 50,
                     child: _isPlaying
                         ? Row(
                             children: [
@@ -412,25 +441,25 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                                   onPressed: (_isStand || _isDealing) ? null : _hit,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.blue,
-                                    minimumSize: const Size.fromHeight(60),
+                                    minimumSize: const Size.fromHeight(50),
                                   ),
                                   child: Text(
                                     tr({'en': 'HIT', 'ko': '히트'}),
-                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: (_isStand || _isDealing) ? null : _stand,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.red,
-                                    minimumSize: const Size.fromHeight(60),
+                                    minimumSize: const Size.fromHeight(50),
                                   ),
                                   child: Text(
                                     tr({'en': 'STAND', 'ko': '스탠드'}),
-                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ),
@@ -443,7 +472,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                               _isDealing
                                   ? tr({'en': 'DEALING...', 'ko': '딜링 중...'})
                                   : tr({'en': 'DEAL', 'ko': '딜'}),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
                             ),
                           ),
                   ),
@@ -456,22 +485,23 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
-  Widget _buildCard(_PlayingCard card) {
+  Widget _buildCard(_PlayingCard card, double scale) {
     return Container(
-      width: 60,
-      height: 90,
-      margin: const EdgeInsets.symmetric(horizontal: 3),
+      width: 50 * scale,
+      height: 75 * scale,
+      margin: EdgeInsets.symmetric(horizontal: 2 * scale),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6 * scale),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
-            blurRadius: 4,
-            offset: const Offset(2, 2),
+            blurRadius: 4 * scale,
+            offset: Offset(2 * scale, 2 * scale),
           ),
         ],
       ),
@@ -479,15 +509,15 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
         children: [
           // Top left
           Positioned(
-            top: 4,
-            left: 4,
+            top: 3 * scale,
+            left: 3 * scale,
             child: Column(
               children: [
                 Text(
                   card.rankLabel,
                   style: TextStyle(
                     color: card.suitColor,
-                    fontSize: 14,
+                    fontSize: 12 * scale,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -495,7 +525,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                   card.suitLabel,
                   style: TextStyle(
                     color: card.suitColor,
-                    fontSize: 10,
+                    fontSize: 8 * scale,
                   ),
                 ),
               ],
@@ -507,14 +537,14 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
               card.suitLabel,
               style: TextStyle(
                 color: card.suitColor,
-                fontSize: 28,
+                fontSize: 22 * scale,
               ),
             ),
           ),
           // Bottom right (inverted)
           Positioned(
-            bottom: 4,
-            right: 4,
+            bottom: 3 * scale,
+            right: 3 * scale,
             child: Transform.rotate(
               angle: 3.14159,
               child: Column(
@@ -523,7 +553,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                     card.rankLabel,
                     style: TextStyle(
                       color: card.suitColor,
-                      fontSize: 14,
+                      fontSize: 12 * scale,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -531,7 +561,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                     card.suitLabel,
                     style: TextStyle(
                       color: card.suitColor,
-                      fontSize: 10,
+                      fontSize: 8 * scale,
                     ),
                   ),
                 ],
@@ -543,35 +573,35 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     );
   }
 
-  Widget _buildCardBack() {
+  Widget _buildCardBack(double scale) {
     return Container(
-      width: 60,
-      height: 90,
-      margin: const EdgeInsets.symmetric(horizontal: 3),
+      width: 50 * scale,
+      height: 75 * scale,
+      margin: EdgeInsets.symmetric(horizontal: 2 * scale),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.red.shade900, Colors.red.shade800],
         ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white, width: 2),
+        borderRadius: BorderRadius.circular(6 * scale),
+        border: Border.all(color: Colors.white, width: 2 * scale),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
-            blurRadius: 4,
-            offset: const Offset(2, 2),
+            blurRadius: 4 * scale,
+            offset: Offset(2 * scale, 2 * scale),
           ),
         ],
       ),
       child: Center(
         child: Container(
-          width: 40,
-          height: 60,
+          width: 30 * scale,
+          height: 45 * scale,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.amber, width: 1),
-            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.amber, width: 1 * scale),
+            borderRadius: BorderRadius.circular(3 * scale),
           ),
-          child: const Center(
-            child: Icon(Icons.question_mark, color: Colors.amber, size: 24),
+          child: Center(
+            child: Icon(Icons.question_mark, color: Colors.amber, size: 20 * scale),
           ),
         ),
       ),
