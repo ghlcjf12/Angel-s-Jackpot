@@ -205,8 +205,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         child: ElevatedButton.icon(
                           onPressed: iapService.isPurchasing ? null : () async {
                             context.read<AudioService>().playButtonSound();
-                            await iapService.buyAdRemoval();
-                            if (mounted && iapService.adRemovalPurchased) {
+                            final error = await iapService.buyAdRemoval();
+                            
+                            if (!mounted) return;
+                            
+                            if (error != null) {
+                              // Show error message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: Colors.orange,
+                                  content: Text(error),
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                            } else if (iapService.adRemovalPurchased) {
+                              // Show success message
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   backgroundColor: Colors.green,

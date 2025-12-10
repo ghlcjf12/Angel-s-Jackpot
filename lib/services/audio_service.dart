@@ -16,12 +16,13 @@ class AudioService extends ChangeNotifier {
   bool _isSfxEnabled = true;
   String? _currentBgm;
   bool _isInitialized = false;
+  late final Future<void> _initFuture;
 
   bool get isBgmEnabled => _isBgmEnabled;
   bool get isSfxEnabled => _isSfxEnabled;
 
   AudioService() {
-    _init();
+    _initFuture = _init();
   }
 
   Future<void> _init() async {
@@ -82,13 +83,14 @@ class AudioService extends ChangeNotifier {
     _isBgmEnabled = !_isBgmEnabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_bgmKey, _isBgmEnabled);
-    
+
     if (_isBgmEnabled) {
       if (_currentBgm != null) {
         playBgm(_currentBgm!);
       }
     } else {
-      _bgmPlayer.stop();
+      await _bgmPlayer.stop();
+      // Keep _currentBgm so it can resume when toggled back on
     }
     notifyListeners();
   }
@@ -101,13 +103,16 @@ class AudioService extends ChangeNotifier {
   }
 
   Future<void> playBgm(String fileName) async {
+    // Wait for settings to be loaded before checking if BGM is enabled
+    await _initFuture;
+
+    // Always remember the BGM track, even if disabled
+    _currentBgm = fileName;
+
     if (!_isBgmEnabled) {
-      debugPrint('BGM disabled, not playing: $fileName');
-      // Don't update _currentBgm if BGM is disabled
+      debugPrint('BGM disabled, saved but not playing: $fileName');
       return;
     }
-
-    _currentBgm = fileName;
 
     try {
       debugPrint('Playing BGM: $fileName');

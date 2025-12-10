@@ -216,20 +216,37 @@ class InAppPurchaseService extends ChangeNotifier {
     }
   }
 
-  Future<void> buyAdRemoval() async {
-    if (!_isAvailable || _isPurchasing || _adRemovalPurchased) {
-      debugPrint('Cannot purchase: available=$_isAvailable, purchasing=$_isPurchasing, purchased=$_adRemovalPurchased');
-      return;
+  Future<String?> buyAdRemoval() async {
+    if (!_isAvailable) {
+      debugPrint('In-app purchase not available');
+      return 'In-app purchase is not available on this device';
+    }
+    
+    if (_isPurchasing) {
+      debugPrint('Purchase already in progress');
+      return 'Purchase already in progress';
+    }
+    
+    if (_adRemovalPurchased) {
+      debugPrint('Ad removal already purchased');
+      return 'Ad removal already purchased';
     }
 
-    final ProductDetails? productDetails = _products.firstWhere(
-      (product) => product.id == _adRemovalProductId,
-      orElse: () => throw Exception('Product not found'),
-    );
+    // Check if products are loaded
+    if (_products.isEmpty) {
+      debugPrint('No products loaded yet');
+      return 'Products not loaded. Please try again in a moment.';
+    }
 
-    if (productDetails == null) {
-      debugPrint('Ad removal product not found');
-      return;
+    // Find the product
+    ProductDetails? productDetails;
+    try {
+      productDetails = _products.firstWhere(
+        (product) => product.id == _adRemovalProductId,
+      );
+    } catch (e) {
+      debugPrint('Ad removal product not found in loaded products');
+      return 'Product not available. Please check your internet connection.';
     }
 
     _isPurchasing = true;
@@ -239,10 +256,12 @@ class InAppPurchaseService extends ChangeNotifier {
     
     try {
       await _iap.buyNonConsumable(purchaseParam: purchaseParam);
+      return null; // Success
     } catch (e) {
       debugPrint('Error initiating purchase: $e');
       _isPurchasing = false;
       notifyListeners();
+      return 'Failed to initiate purchase: ${e.toString()}';
     }
   }
 
