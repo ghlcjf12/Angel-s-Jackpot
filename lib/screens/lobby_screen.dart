@@ -66,7 +66,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       ConstrainedBox(
                         constraints: const BoxConstraints(minWidth: 72, maxWidth: 80, minHeight: _headerButtonHeight),
                         child: OutlinedButton.icon(
-                          onPressed: () => _openLanguageSheet(context),
+                          onPressed: () {
+                            context.read<AudioService>().playButtonSound();
+                            _openLanguageSheet(context);
+                          },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.amber),
                             foregroundColor: Colors.amber,
@@ -100,6 +103,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
+                            context.read<AudioService>().playButtonSound();
                             AdService().showRewardedAd(
                               onReward: (amount) {
                                 context.read<GameProvider>().winPrize(amount);
@@ -128,6 +132,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
+                            context.read<AudioService>().playButtonSound();
                             Navigator.push(context, MaterialPageRoute(builder: (_) => const DonationRankingScreen()));
                           },
                           style: ElevatedButton.styleFrom(
@@ -150,7 +155,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         child: Consumer<AudioService>(
                           builder: (context, audio, child) {
                             return IconButton(
-                              onPressed: () => audio.toggleBgm(),
+                              onPressed: () {
+                                audio.playButtonSound();
+                                audio.toggleBgm();
+                              },
                               icon: Icon(
                                 audio.isBgmEnabled ? Icons.music_note : Icons.music_off,
                                 color: Colors.amber,
@@ -261,7 +269,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   Widget _buildGameCard(BuildContext context, String title, Color color, String emoji, VoidCallback onTap) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        context.read<AudioService>().playButtonSound();
+        onTap();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(

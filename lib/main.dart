@@ -51,7 +51,8 @@ class MyApp extends StatelessWidget {
           create: (context) => GameProvider(context.read<FirebaseService>()),
         ),
       ],
-      child: Consumer<LocalizationService>(
+      child: LifecycleWatcher(
+        child: Consumer<LocalizationService>(
         builder: (context, localization, _) {
           return MaterialApp(
             title: localization.translate(AppStrings.appTitle),
@@ -75,6 +76,7 @@ class MyApp extends StatelessWidget {
           );
         },
       ),
+    ),
     );
   }
 }
@@ -90,5 +92,45 @@ class AuthGate extends StatelessWidget {
         return const LobbyScreen();
       },
     );
+  }
+}
+
+class LifecycleWatcher extends StatefulWidget {
+  final Widget child;
+  const LifecycleWatcher({super.key, required this.child});
+
+  @override
+  State<LifecycleWatcher> createState() => _LifecycleWatcherState();
+}
+
+class _LifecycleWatcherState extends State<LifecycleWatcher> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    final audioService = context.read<AudioService>();
+    if (state == AppLifecycleState.paused) {
+      debugPrint("App paused - pausing BGM");
+      audioService.pauseBgm();
+    } else if (state == AppLifecycleState.resumed) {
+      debugPrint("App resumed - resuming BGM");
+      audioService.resumeBgm();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }

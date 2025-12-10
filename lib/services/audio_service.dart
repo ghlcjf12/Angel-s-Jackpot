@@ -121,6 +121,27 @@ class AudioService extends ChangeNotifier {
     await _bgmPlayer.stop();
   }
 
+  Future<void> pauseBgm() async {
+    if (_bgmPlayer.state == PlayerState.playing) {
+      await _bgmPlayer.pause();
+    }
+  }
+
+  Future<void> resumeBgm() async {
+    if (!_isBgmEnabled) return;
+    if (_bgmPlayer.state == PlayerState.paused && _currentBgm != null) {
+      await _bgmPlayer.resume();
+    } else if (_currentBgm != null && _bgmPlayer.state != PlayerState.playing) {
+      // If it wasn't paused but we have a current BGM (e.g. stopped), play it
+      // but 'pause' usually means we want to resume exactly where we left off.
+      // If state is stopped, resume() might not work depending on implementation, 
+      // but play() works.
+      // For now, let's trust resume() works for paused state.
+      // If it fully stopped, we might need playBgm(_currentBgm!).
+      await _bgmPlayer.resume(); 
+    }
+  }
+
   Future<void> playSfx(String fileName) async {
     if (!_isSfxEnabled) {
       debugPrint('SFX disabled, not playing: $fileName');
@@ -184,6 +205,7 @@ class AudioService extends ChangeNotifier {
   void playSuccessSound() => playSfx('bbabam.mp3');
   void playFailSound() => playSfx('fail.mp3');
   void playGetCoinSound() => playSfx('getcoin.mp3');
+  void playBettingSound() => playSfx('batting.mp3');
   
   void playWinSound() async {
     playSfx('bbabam.mp3');

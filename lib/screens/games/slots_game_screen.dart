@@ -80,7 +80,7 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
     }
 
     if (mounted) {
-      context.read<AudioService>().playButtonSound();
+      context.read<AudioService>().playBettingSound();
     }
 
     final finalSymbols = _determineResult();
@@ -223,6 +223,7 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.of(context).pop();
             },
@@ -230,7 +231,10 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.slotsDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.slotsDescription);
+              },
             ),
           ],
         ),
@@ -431,7 +435,10 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
                       IconButton(
                         onPressed: _isSpinning
                             ? null
-                            : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                            : () {
+                                context.read<AudioService>().playButtonSound();
+                                setState(() => _betAmount = max(10, _betAmount - 10));
+                              },
                         icon: const Icon(Icons.remove),
                       ),
                       Container(
@@ -446,7 +453,10 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
                         ),
                       ),
                       IconButton(
-                        onPressed: _isSpinning ? null : () => setState(() => _betAmount += 10),
+                        onPressed: _isSpinning ? null : () {
+                          context.read<AudioService>().playButtonSound();
+                          setState(() => _betAmount += 10);
+                        },
                         icon: const Icon(Icons.add),
                       ),
                     ],

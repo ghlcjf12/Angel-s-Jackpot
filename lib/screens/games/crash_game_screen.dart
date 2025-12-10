@@ -116,6 +116,10 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     setState(() {
       _isPlaying = true;
       _crashed = false;
@@ -204,6 +208,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.of(context).pop();
             },
@@ -211,7 +216,10 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.crashDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.crashDescription);
+              },
             ),
           ],
         ),
@@ -286,12 +294,18 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
-                        onPressed: _isPlaying ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                        onPressed: _isPlaying ? null : () {
+                          context.read<AudioService>().playButtonSound();
+                          setState(() => _betAmount = max(10, _betAmount - 10));
+                        },
                         icon: const Icon(Icons.remove),
                       ),
                       Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                       IconButton(
-                        onPressed: _isPlaying ? null : () => setState(() => _betAmount += 10),
+                        onPressed: _isPlaying ? null : () {
+                          context.read<AudioService>().playButtonSound();
+                          setState(() => _betAmount += 10);
+                        },
                         icon: const Icon(Icons.add),
                       ),
                     ],
@@ -302,7 +316,10 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
                     height: 60,
                     child: _isPlaying
                         ? ElevatedButton(
-                            onPressed: (_cashedOut || _isCashingOut) ? null : _cashOut,
+                            onPressed: (_cashedOut || _isCashingOut) ? null : () {
+                              context.read<AudioService>().playButtonSound();
+                              _cashOut();
+                            },
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                             child: Text(
                               _isCashingOut

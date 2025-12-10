@@ -78,6 +78,10 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     _finalResult = Random().nextInt(37); // 0-36
     _finalColor = "GREEN";
     if (_finalResult != 0) {
@@ -189,6 +193,7 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -196,7 +201,10 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.rouletteDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.rouletteDescription);
+              },
             ),
           ],
         ),
@@ -275,9 +283,15 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(onPressed: _isSpinning ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
+                      IconButton(onPressed: _isSpinning ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        setState(() => _betAmount = max(10, _betAmount - 10));
+                      }, icon: const Icon(Icons.remove)),
                       Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
-                      IconButton(onPressed: _isSpinning ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                      IconButton(onPressed: _isSpinning ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        setState(() => _betAmount += 10);
+                      }, icon: const Icon(Icons.add)),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -328,7 +342,10 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
   Widget _buildBetOption(String label, String key, Color color) {
     bool selected = _selectedBet == key;
     return GestureDetector(
-      onTap: () => setState(() => _selectedBet = key),
+      onTap: () {
+         context.read<AudioService>().playButtonSound();
+         setState(() => _selectedBet = key);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(

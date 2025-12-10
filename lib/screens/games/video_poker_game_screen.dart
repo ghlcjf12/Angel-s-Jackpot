@@ -132,6 +132,10 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
         return;
       }
 
+      if (mounted) {
+        context.read<AudioService>().playBettingSound();
+      }
+
       setState(() => _isDealing = true);
 
       _deck.reset();
@@ -296,6 +300,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -303,7 +308,10 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.videoPokerDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.videoPokerDescription);
+              },
             ),
           ],
         ),
@@ -347,7 +355,10 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                                 int idx = entry.key;
                                 PlayingCard card = entry.value;
                                 return GestureDetector(
-                                  onTap: (_isFirstDeal || _isDealing) ? null : () => setState(() => _held[idx] = !_held[idx]),
+                                  onTap: (_isFirstDeal || _isDealing) ? null : () {
+                                    context.read<AudioService>().playButtonSound();
+                                    setState(() => _held[idx] = !_held[idx]);
+                                  },
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     transform: Matrix4.translationValues(0, _held[idx] ? -10 * scale : 0, 0),
@@ -410,12 +421,18 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
-                          onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                          onPressed: _isDealing ? null : () {
+                            context.read<AudioService>().playButtonSound();
+                            setState(() => _betAmount = max(10, _betAmount - 10));
+                          },
                           icon: const Icon(Icons.remove),
                         ),
                         Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                         IconButton(
-                          onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
+                          onPressed: _isDealing ? null : () {
+                            context.read<AudioService>().playButtonSound();
+                            setState(() => _betAmount += 10);
+                          },
                           icon: const Icon(Icons.add),
                         ),
                       ],
@@ -425,7 +442,10 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: _isDealing ? null : _deal,
+                      onPressed: _isDealing ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        _deal();
+                      },
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
                       child: Text(
                         _isFirstDeal ? tr({'en': 'DEAL', 'ko': '딜'}) : tr({'en': 'DRAW', 'ko': '드로우'}),

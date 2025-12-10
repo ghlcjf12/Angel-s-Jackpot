@@ -54,6 +54,10 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     final finalResult = Random().nextBool() ? "HEADS" : "TAILS";
 
     for (int i = 0; i < 10; i++) {
@@ -100,6 +104,7 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -107,7 +112,10 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.coinFlipDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.coinFlipDescription);
+              },
             ),
           ],
         ),
@@ -150,9 +158,15 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(onPressed: _isFlipping ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
+                      IconButton(onPressed: _isFlipping ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        setState(() => _betAmount = max(10, _betAmount - 10));
+                      }, icon: const Icon(Icons.remove)),
                       Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
-                      IconButton(onPressed: _isFlipping ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                      IconButton(onPressed: _isFlipping ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        setState(() => _betAmount += 10);
+                      }, icon: const Icon(Icons.add)),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -191,7 +205,10 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
 
   Widget _buildChoice(String label, String key, Color color) {
     return GestureDetector(
-      onTap: _isFlipping ? null : () => setState(() => _selected = key),
+      onTap: _isFlipping ? null : () {
+        context.read<AudioService>().playButtonSound();
+        setState(() => _selected = key);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(

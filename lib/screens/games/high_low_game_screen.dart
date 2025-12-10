@@ -58,6 +58,10 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     int nextCard = Random().nextInt(13) + 1;
     bool win = false;
 
@@ -98,6 +102,7 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -105,7 +110,10 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.highLowDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.highLowDescription);
+              },
             ),
           ],
         ),
@@ -149,9 +157,15 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(onPressed: _isPlaying ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)), icon: const Icon(Icons.remove)),
+                      IconButton(onPressed: _isPlaying ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        setState(() => _betAmount = max(10, _betAmount - 10));
+                      }, icon: const Icon(Icons.remove)),
                       Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
-                      IconButton(onPressed: _isPlaying ? null : () => setState(() => _betAmount += 10), icon: const Icon(Icons.add)),
+                      IconButton(onPressed: _isPlaying ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        setState(() => _betAmount += 10);
+                      }, icon: const Icon(Icons.add)),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -159,7 +173,10 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _isPlaying ? null : () => _guess(true),
+                          onPressed: _isPlaying ? null : () {
+                            context.read<AudioService>().playButtonSound();
+                            _guess(true);
+                          },
                           icon: const Icon(Icons.arrow_upward),
                           label: Text(tr({'en': 'HIGHER', 'ko': '높다'})),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.all(20)),
@@ -168,7 +185,10 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
                       const SizedBox(width: 20),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _isPlaying ? null : () => _guess(false),
+                          onPressed: _isPlaying ? null : () {
+                            context.read<AudioService>().playButtonSound();
+                            _guess(false);
+                          },
                           icon: const Icon(Icons.arrow_downward),
                           label: Text(tr({'en': 'LOWER', 'ko': '낮다'})),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: const EdgeInsets.all(20)),

@@ -61,6 +61,10 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     setState(() {
       _isScratched = false;
       _hasTicket = true;
@@ -92,6 +96,7 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -99,7 +104,10 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.scratchCardDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.scratchCardDescription);
+              },
             ),
           ],
         ),
@@ -215,7 +223,10 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: (_hasTicket || _isPurchasing) ? null : _buyTicket,
+                      onPressed: (_hasTicket || _isPurchasing) ? null : () {
+                        context.read<AudioService>().playButtonSound();
+                        _buyTicket();
+                      },
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.pink),
                       child: Text(
                         _isPurchasing

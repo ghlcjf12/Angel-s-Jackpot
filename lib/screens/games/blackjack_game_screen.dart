@@ -132,6 +132,10 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
       }
       return;
     }
+    
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
 
     _deck.reset();
 
@@ -278,6 +282,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -285,7 +290,10 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.blackjackDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.blackjackDescription);
+              },
             ),
           ],
         ),
@@ -419,12 +427,18 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         IconButton(
-                          onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                          onPressed: _isDealing ? null : () {
+                            context.read<AudioService>().playButtonSound();
+                            setState(() => _betAmount = max(10, _betAmount - 10));
+                          },
                           icon: const Icon(Icons.remove),
                         ),
                         Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 20)),
                         IconButton(
-                          onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
+                          onPressed: _isDealing ? null : () {
+                            context.read<AudioService>().playButtonSound();
+                            setState(() => _betAmount += 10);
+                          },
                           icon: const Icon(Icons.add),
                         ),
                       ],
@@ -438,7 +452,10 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                             children: [
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: (_isStand || _isDealing) ? null : _hit,
+                                  onPressed: (_isStand || _isDealing) ? null : () {
+                                    context.read<AudioService>().playButtonSound();
+                                    _hit();
+                                  },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.blue,
                                     minimumSize: const Size.fromHeight(50),
@@ -452,7 +469,10 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: (_isStand || _isDealing) ? null : _stand,
+                                  onPressed: (_isStand || _isDealing) ? null : () {
+                                    context.read<AudioService>().playButtonSound();
+                                    _stand();
+                                  },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.red,
                                     minimumSize: const Size.fromHeight(50),

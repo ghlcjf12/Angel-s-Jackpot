@@ -114,6 +114,10 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     final finalResult = Random().nextInt(6) + 1;
 
     // Shake animation
@@ -177,6 +181,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -184,7 +189,10 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.diceDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.diceDescription);
+              },
             ),
           ],
         ),
@@ -333,7 +341,12 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
-                        onPressed: _isRolling ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                        onPressed: _isRolling
+                            ? null
+                            : () {
+                                context.read<AudioService>().playButtonSound();
+                                setState(() => _betAmount = max(10, _betAmount - 10));
+                              },
                         icon: const Icon(Icons.remove),
                       ),
                       Container(
@@ -345,7 +358,12 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
                         child: Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 24)),
                       ),
                       IconButton(
-                        onPressed: _isRolling ? null : () => setState(() => _betAmount += 10),
+                        onPressed: _isRolling
+                            ? null
+                            : () {
+                                context.read<AudioService>().playButtonSound();
+                                setState(() => _betAmount += 10);
+                              },
                         icon: const Icon(Icons.add),
                       ),
                     ],
@@ -359,7 +377,12 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
                       int num = index + 1;
                       bool isSelected = _selectedNumber == num;
                       return GestureDetector(
-                        onTap: _isRolling ? null : () => setState(() => _selectedNumber = num),
+                        onTap: _isRolling
+                            ? null
+                            : () {
+                                context.read<AudioService>().playButtonSound();
+                                setState(() => _selectedNumber = num);
+                              },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           width: 48,

@@ -60,6 +60,10 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
       return;
     }
 
+    if (mounted) {
+      context.read<AudioService>().playBettingSound();
+    }
+
     setState(() {
       _playerHand = [_drawCard(), _drawCard()];
       _bankerHand = [_drawCard(), _drawCard()];
@@ -196,6 +200,7 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
+              context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
               Navigator.pop(context);
             },
@@ -203,7 +208,10 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.amber),
-              onPressed: () => showHowToPlayDialog(context, AppStrings.baccaratDescription),
+              onPressed: () {
+                context.read<AudioService>().playButtonSound();
+                showHowToPlayDialog(context, AppStrings.baccaratDescription);
+              },
             ),
           ],
         ),
@@ -248,12 +256,18 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
-                        onPressed: _isDealing ? null : () => setState(() => _betAmount = max(10, _betAmount - 10)),
+                        onPressed: _isDealing ? null : () {
+                          context.read<AudioService>().playButtonSound();
+                          setState(() => _betAmount = max(10, _betAmount - 10));
+                        },
                         icon: const Icon(Icons.remove),
                       ),
                       Text("${tr(AppStrings.bet)}: $_betAmount", style: const TextStyle(fontSize: 22)),
                       IconButton(
-                        onPressed: _isDealing ? null : () => setState(() => _betAmount += 10),
+                        onPressed: _isDealing ? null : () {
+                          context.read<AudioService>().playButtonSound();
+                          setState(() => _betAmount += 10);
+                        },
                         icon: const Icon(Icons.add),
                       ),
                     ],
@@ -300,7 +314,12 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     bool selected = _selectedBet == key;
     return Expanded(
       child: GestureDetector(
-        onTap: _isDealing ? null : () => setState(() => _selectedBet = key),
+        onTap: _isDealing
+            ? null
+            : () {
+                context.read<AudioService>().playButtonSound();
+                setState(() => _selectedBet = key);
+              },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 15),
