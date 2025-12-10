@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:audioplayers/audioplayers.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -39,10 +41,33 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
   int? _finalResult;
   String? _finalColor;
 
+  final AudioPlayer _spinAudioPlayer = AudioPlayer();
+
+  int _lastSegmentIndex = 0;
+  DateTime _lastSoundTime = DateTime.fromMillisecondsSinceEpoch(0);
+
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    
+    // Configure inner audio player context to mix with BGM
+    _spinAudioPlayer.setAudioContext(AudioContext(
+      android: AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: false,
+        contentType: AndroidContentType.sonification,
+        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.none,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback,
+        options: {
+          AVAudioSessionOptions.mixWithOthers,
+        },
+      ),
+    ));
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AudioService>().playGameBgm();
     });
@@ -51,6 +76,7 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
   @override
   void dispose() {
     _controller.dispose();
+    _spinAudioPlayer.dispose();
     super.dispose();
   }
 
@@ -99,18 +125,46 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
     final double targetAngle = resultIndex * segmentAngle + segmentAngle / 2;
     final double totalRotation = 4 * pi + (2 * pi - targetAngle);
 
+    // Prepare audio for this spin
+    if (context.read<AudioService>().isSfxEnabled) {
+      await _spinAudioPlayer.stop(); 
+      await _spinAudioPlayer.setReleaseMode(ReleaseMode.stop); // No loop
+      await _spinAudioPlayer.setSource(AssetSource('audio/lulletbeep.mp3'));
+    }
+    _lastSegmentIndex = 0;
+    _lastSoundTime = DateTime.now();
+
     final animation = Tween<double>(
       begin: 0,
       end: totalRotation,
     ).animate(CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOut,
+      curve: Curves.easeOut, // Wheel slows down naturally
     ));
 
     animation.addListener(() {
       setState(() {
         _angle = animation.value;
       });
+      
+      // Calculate current segment index based on total rotation
+      final int currentSegmentIndex = (_angle / segmentAngle).floor();
+      
+      // If we crossed a segment boundary, play the tick sound
+      if (currentSegmentIndex > _lastSegmentIndex) {
+        _lastSegmentIndex = currentSegmentIndex;
+        
+        if (context.read<AudioService>().isSfxEnabled) {
+          final now = DateTime.now();
+          // Rate limit to allow "machine gun" effect but protect audio engine
+          // Increased to 60ms to make the initial sound less frantic/slower
+          if (now.difference(_lastSoundTime).inMilliseconds > 60) {
+             // Fire and forget sound play
+             _playTickSound();
+             _lastSoundTime = now;
+          }
+        }
+      }
     });
 
     _controller.forward(from: 0).then((_) {
@@ -119,6 +173,30 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
         _checkWin();
       }
     });
+  }
+
+  int _soundId = 0;
+
+  void _playTickSound() async {
+     _soundId++;
+     final int currentId = _soundId;
+     
+     try {
+       await _spinAudioPlayer.stop();
+       // Skip the initial 0.115s silence as requested by user
+       await _spinAudioPlayer.seek(const Duration(milliseconds: 110)); 
+       await _spinAudioPlayer.resume();
+
+       // Cut off the end by stopping early (simulating removing tail/silence)
+       // We stop after 200ms to ensure it's a short, crisp tick without lingering
+       Future.delayed(const Duration(milliseconds: 200), () async {
+         if (mounted && _soundId == currentId) {
+            await _spinAudioPlayer.stop();
+         }
+       });
+     } catch (e) {
+       // Ignore audio errors during rapid firing
+     }
   }
 
   void _checkWin() {
