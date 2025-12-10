@@ -144,7 +144,7 @@ class AudioService extends ChangeNotifier {
 
   int _sfxPoolIndex = 0;
 
-  Future<void> playSfx(String fileName, {Duration? seekTo}) async {
+  Future<void> playSfx(String fileName, {Duration? seekTo, double volume = 0.7}) async {
     if (!_isSfxEnabled) {
       debugPrint('SFX disabled, not playing: $fileName');
       return;
@@ -161,7 +161,7 @@ class AudioService extends ChangeNotifier {
       _sfxPoolIndex = (_sfxPoolIndex + 1) % _maxSfxPlayers;
       
       await player.stop();
-      await player.setVolume(0.7); // Reset to default SFX volume
+      await player.setVolume(volume.clamp(0.0, 3.0)); // Allow up to 3x volume
       await player.setPlaybackRate(1.0); // Reset to normal speed
       
       // Set source first to allow seeking
@@ -199,7 +199,8 @@ class AudioService extends ChangeNotifier {
   void playSuccessSound() => playSfx('bbabam.mp3');
   void playFailSound() => playSfx('fail.mp3');
   void playGetCoinSound() => playSfx('getcoin.mp3');
-  void playBettingSound() => playSfx('batting.mp3', seekTo: const Duration(milliseconds: 200));
+  void playBettingSound() => playSfx('batting.mp3', seekTo: const Duration(milliseconds: 200)); // For crash game (0.2s)
+  void playBettingSoundLong() => playSfx('batting.mp3', seekTo: const Duration(milliseconds: 400)); // For other games (0.4s)
   
   void playWinSound() async {
     playSfx('bbabam.mp3');

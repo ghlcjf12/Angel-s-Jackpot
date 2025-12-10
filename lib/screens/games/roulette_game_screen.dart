@@ -106,7 +106,7 @@ class _RouletteGameScreenState extends State<RouletteGameScreen> with SingleTick
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     _finalResult = Random().nextInt(37); // 0-36

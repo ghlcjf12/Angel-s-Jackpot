@@ -56,7 +56,7 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     final finalResult = Random().nextBool() ? "HEADS" : "TAILS";

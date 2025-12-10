@@ -135,7 +135,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     }
     
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     _deck.reset();

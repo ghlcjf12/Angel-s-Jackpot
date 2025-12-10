@@ -116,7 +116,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     final finalResult = Random().nextInt(6) + 1;
@@ -124,10 +124,16 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
     // Shake animation
     _shakeController.forward(from: 0);
 
-    // Rolling animation
+    // Rolling animation with tick sound on each change
     for (int i = 0; i < 15; i++) {
       await Future.delayed(Duration(milliseconds: 50 + i * 10));
       if (!mounted) return;
+      
+      // Play tick sound on each dice face change
+      if (context.read<AudioService>().isSfxEnabled) {
+        context.read<AudioService>().playSfx('dice.mp3', volume: 1.0);
+      }
+      
       setState(() => _result = Random().nextInt(6) + 1);
     }
 

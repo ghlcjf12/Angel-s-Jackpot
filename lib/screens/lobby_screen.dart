@@ -238,7 +238,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     context,
                     localization.translate(AppStrings.baccarat),
                     Colors.brown,
-                    '🎴',
+                    '♠️♥️',
                     () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BaccaratGameScreen())),
                   ),
                   _buildGameCard(

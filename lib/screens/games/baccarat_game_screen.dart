@@ -63,7 +63,7 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     setState(() {

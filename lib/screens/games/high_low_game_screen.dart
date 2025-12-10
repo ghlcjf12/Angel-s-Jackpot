@@ -60,7 +60,7 @@ class _HighLowGameScreenState extends State<HighLowGameScreen> {
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     int nextCard = Random().nextInt(13) + 1;

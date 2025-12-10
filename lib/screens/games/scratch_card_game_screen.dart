@@ -62,7 +62,7 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     setState(() {

@@ -135,7 +135,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
       }
 
       if (mounted) {
-        context.read<AudioService>().playBettingSound();
+        context.read<AudioService>().playBettingSoundLong();
       }
 
       setState(() => _isDealing = true);

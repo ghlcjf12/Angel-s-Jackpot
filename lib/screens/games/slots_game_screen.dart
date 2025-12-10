@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -26,10 +27,32 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
   int _lastWin = 0;
 
   late List<AnimationController> _reelControllers;
+  
+  // Audio player for slot spin sound
+  final AudioPlayer _spinAudioPlayer = AudioPlayer();
+  int _soundId = 0;
 
   @override
   void initState() {
     super.initState();
+    
+    // Configure audio player context to mix with BGM
+    _spinAudioPlayer.setAudioContext(AudioContext(
+      android: AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: false,
+        contentType: AndroidContentType.sonification,
+        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.none,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback,
+        options: {
+          AVAudioSessionOptions.mixWithOthers,
+        },
+      ),
+    ));
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AudioService>().playGameBgm();
     });
@@ -47,6 +70,7 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
     for (var controller in _reelControllers) {
       controller.dispose();
     }
+    _spinAudioPlayer.dispose();
     super.dispose();
   }
 
@@ -81,10 +105,17 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
     }
 
     if (mounted) {
-      context.read<AudioService>().playBettingSound();
+      context.read<AudioService>().playBettingSoundLong();
     }
 
     final finalSymbols = _determineResult();
+
+    // Prepare audio for this spin
+    if (context.read<AudioService>().isSfxEnabled) {
+      await _spinAudioPlayer.stop();
+      await _spinAudioPlayer.setReleaseMode(ReleaseMode.stop);
+      await _spinAudioPlayer.setSource(AssetSource('audio/lulletbeep.mp3'));
+    }
 
     // Start all reel animations
     for (var controller in _reelControllers) {
@@ -114,6 +145,12 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
     for (int i = 0; i < iterations; i++) {
       await Future.delayed(Duration(milliseconds: 50 + (i * 5)));
       if (!mounted) return;
+      
+      // Play tick sound on each symbol change
+      if (context.read<AudioService>().isSfxEnabled) {
+        _playTickSound();
+      }
+      
       if (i < iterations - 1) {
         setState(() {
           _currentSymbols[reelIndex] = _symbols[random.nextInt(_symbols.length)];
@@ -123,6 +160,27 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
           _currentSymbols[reelIndex] = finalSymbol;
         });
       }
+    }
+  }
+
+  void _playTickSound() async {
+    _soundId++;
+    final int currentId = _soundId;
+
+    try {
+      await _spinAudioPlayer.stop();
+      // Skip the initial 0.115s silence
+      await _spinAudioPlayer.seek(const Duration(milliseconds: 110));
+      await _spinAudioPlayer.resume();
+
+      // Cut off the end by stopping early for a crisp tick
+      Future.delayed(const Duration(milliseconds: 200), () async {
+        if (mounted && _soundId == currentId) {
+          await _spinAudioPlayer.stop();
+        }
+      });
+    } catch (e) {
+      // Ignore audio errors during rapid firing
     }
   }
 
