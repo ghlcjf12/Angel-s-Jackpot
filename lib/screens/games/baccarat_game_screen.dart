@@ -41,7 +41,8 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     final provider = context.read<GameProvider>();
 
     if (provider.balance < _betAmount) {
-      ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
       );
       return;
@@ -52,6 +53,7 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
     final success = await provider.placeBet(_betAmount);
     if (!success) {
       if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
         );
@@ -156,11 +158,13 @@ class _BaccaratGameScreenState extends State<BaccaratGameScreen> {
       if (win) {
         provider.winPrize((_betAmount * multiplier).toInt());
         context.read<AudioService>().playWinSound();
+          ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(backgroundColor: Colors.green, content: Text(localization.translate(AppStrings.win))),
         );
       } else {
         context.read<AudioService>().playFailSound();
+          ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(backgroundColor: Colors.red, content: Text(localization.translate(AppStrings.lose))),
         );

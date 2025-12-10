@@ -46,6 +46,7 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
     final success = await provider.placeBet(_betAmount);
     if (!success) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
         );

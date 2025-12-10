@@ -106,6 +106,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
 
     if (!success) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
         );
@@ -143,6 +144,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
         setState(() {
           _resultMessage = localization.translate({'en': '🎉 WIN! +${_betAmount * 6}', 'ko': '🎉 당첨! +${_betAmount * 6}'});
         });
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.green,
@@ -154,6 +156,7 @@ class _DiceGameScreenState extends State<DiceGameScreen> with SingleTickerProvid
         setState(() {
           _resultMessage = localization.translate({'en': 'Try again!', 'ko': '다시 도전!'});
         });
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.red,

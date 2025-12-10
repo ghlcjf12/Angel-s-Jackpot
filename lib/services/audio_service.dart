@@ -142,61 +142,55 @@ class AudioService extends ChangeNotifier {
     }
   }
 
-  Future<void> playSfx(String fileName) async {
+  int _sfxPoolIndex = 0;
+
+  Future<void> playSfx(String fileName, {Duration? seekTo}) async {
     if (!_isSfxEnabled) {
       debugPrint('SFX disabled, not playing: $fileName');
       return;
     }
     
     if (_sfxPlayerPool.isEmpty) {
-      debugPrint('SFX player pool empty, creating new player for: $fileName');
-      // 풀이 비어있으면 새 플레이어 생성 (AudioContext 포함)
-      final player = AudioPlayer();
-      try {
-        await player.setAudioContext(AudioContext(
-          android: AudioContextAndroid(
-            isSpeakerphoneOn: false,
-            stayAwake: false,
-            contentType: AndroidContentType.sonification,
-            usageType: AndroidUsageType.game,
-            audioFocus: AndroidAudioFocus.none,
-          ),
-          iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.playback,
-            options: {
-              AVAudioSessionOptions.mixWithOthers,
-            },
-          ),
-        ));
-        await player.setVolume(0.7);
-        await player.play(AssetSource('audio/$fileName'));
-        debugPrint('SFX played with new player: $fileName');
-      } catch (e) {
-        debugPrint('Error playing SFX with new player: $e');
-      }
+      // ... (existing creation logic if empty, though init covers it)
       return;
     }
 
     try {
-      debugPrint('Playing SFX: $fileName');
-      // 풀에서 사용 가능한 플레이어 찾기 (재생 중이 아닌 것)
-      AudioPlayer? availablePlayer;
-      for (final player in _sfxPlayerPool) {
-        final state = player.state;
-        if (state != PlayerState.playing) {
-          availablePlayer = player;
-          break;
-        }
+      // Use round-robin to avoid race conditions and ensure polyphony
+      final player = _sfxPlayerPool[_sfxPoolIndex];
+      _sfxPoolIndex = (_sfxPoolIndex + 1) % _maxSfxPlayers;
+      
+      await player.stop();
+      await player.setVolume(0.7); // Reset to default SFX volume
+      await player.setPlaybackRate(1.0); // Reset to normal speed
+      
+      // Set source first to allow seeking
+      await player.setSource(AssetSource('audio/$fileName'));
+      if (seekTo != null) {
+        await player.seek(seekTo);
       }
+      await player.resume(); // Use resume after setting source
       
-      // 모든 플레이어가 사용 중이면 첫 번째 플레이어 재사용
-      availablePlayer ??= _sfxPlayerPool.first;
-      
-      await availablePlayer.stop();
-      await availablePlayer.play(AssetSource('audio/$fileName'));
-      debugPrint('SFX play command sent: $fileName');
     } catch (e) {
       debugPrint('Error playing SFX: $e');
+    }
+  }
+
+  Future<void> playPitchSfx(String fileName, {double volume = 1.0, double pitch = 1.0}) async {
+    if (!_isSfxEnabled) return;
+    if (_sfxPlayerPool.isEmpty) return;
+
+    try {
+      // Use round-robin
+      final player = _sfxPlayerPool[_sfxPoolIndex];
+      _sfxPoolIndex = (_sfxPoolIndex + 1) % _maxSfxPlayers;
+
+      await player.stop();
+      await player.setVolume(volume.clamp(0.0, 1.0));
+      await player.setPlaybackRate(pitch.clamp(0.5, 2.0)); 
+      await player.play(AssetSource('audio/$fileName'));
+    } catch (e) {
+      debugPrint('Error playing pitch SFX: $e');
     }
   }
 
@@ -205,7 +199,7 @@ class AudioService extends ChangeNotifier {
   void playSuccessSound() => playSfx('bbabam.mp3');
   void playFailSound() => playSfx('fail.mp3');
   void playGetCoinSound() => playSfx('getcoin.mp3');
-  void playBettingSound() => playSfx('batting.mp3');
+  void playBettingSound() => playSfx('batting.mp3', seekTo: const Duration(milliseconds: 200));
   
   void playWinSound() async {
     playSfx('bbabam.mp3');

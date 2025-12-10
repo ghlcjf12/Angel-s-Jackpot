@@ -143,7 +143,8 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
                                       if (_prize > 0) {
                                         context.read<GameProvider>().winPrize(_prize);
                                         context.read<AudioService>().playWinSound();
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
                                             backgroundColor: Colors.green,
                                             content: Text(
@@ -153,7 +154,8 @@ class _ScratchCardGameScreenState extends State<ScratchCardGameScreen> {
                                         );
                                       } else {
                                         context.read<AudioService>().playFailSound();
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
                                             backgroundColor: Colors.red,
                                             content: Text(tr({'en': 'Better luck next time!', 'ko': '다음 기회에!'})),

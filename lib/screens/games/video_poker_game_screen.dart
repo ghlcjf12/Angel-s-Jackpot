@@ -115,6 +115,7 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
 
     if (_isFirstDeal) {
       if (provider.balance < _betAmount) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
         );
@@ -125,7 +126,8 @@ class _VideoPokerGameScreenState extends State<VideoPokerGameScreen> {
 
       if (!success) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
           );
         }

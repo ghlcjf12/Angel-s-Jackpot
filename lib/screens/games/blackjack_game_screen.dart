@@ -125,6 +125,7 @@ class _BlackjackGameScreenState extends State<BlackjackGameScreen> {
     final success = await provider.placeBet(_betAmount);
     if (!success) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
         );

@@ -31,6 +31,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
   Timer? _timer;
   final List<FlSpot> _spots = [const FlSpot(0, 1.0)];
   double _time = 0.0;
+  double _lastBeepTime = 0.0;
 
   @override
   void initState() {
@@ -98,27 +99,38 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
     return crashPoint;
   }
 
+
+
+  void _playRisingSound() {
+    // Multiplier increases exponentially, so we use log for smoother audio transition
+    // natural log of 1 is 0.
+    double logM = log(_multiplier); 
+    
+    // Pitch: Starts at 0.6, increases with multiplier, caps at 2.0
+    double pitch = (0.6 + (logM * 0.3)).clamp(0.6, 2.0);
+    
+    // Volume: Starts at 0.6, increases to 1.0
+    double volume = (0.6 + (logM * 0.2)).clamp(0.6, 1.0);
+    
+    context.read<AudioService>().playPitchSfx('beep.mp3', volume: volume, pitch: pitch);
+  }
+
   void _startGame() async {
     final localization = context.read<LocalizationService>();
     final provider = context.read<GameProvider>();
+    
+    // 1. Check Balance
     if (provider.balance < _betAmount) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(localization.translate(AppStrings.insufficientFunds))),
       );
       return;
     }
 
-    final success = await provider.placeBet(_betAmount);
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
-      );
-      return;
-    }
+    // 2. UPDATE STATE IMMEDIATELY (Optimistic UI)
+    // Play sounds right away
 
-    if (mounted) {
-      context.read<AudioService>().playBettingSound();
-    }
 
     setState(() {
       _isPlaying = true;
@@ -127,17 +139,68 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
       _isCashingOut = false;
       _multiplier = 1.0;
       _time = 0.0;
+      _lastBeepTime = 0.0; // Initialize beep timer
       _spots
         ..clear()
         ..add(const FlSpot(0, 1.0));
-      _crashPoint = _determineCrashPoint();
     });
 
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    // Play first beep immediately with the betting sound
+    // Use Future.microtask or just call them directly to ensure parallel execution
+    context.read<AudioService>().playBettingSound();
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted && _isPlaying) _playRisingSound();
+    }); 
+
+    // 3. Process Bet (Async)
+    final success = await provider.placeBet(_betAmount);
+    if (!success) {
+      // Revert if failed
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+        });
+        ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
+        );
+      }
+      return;
+    }
+
+    // 4. Start Game Logic
+    setState(() {
+        _crashPoint = _determineCrashPoint();
+    });
+
+    _timer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
       setState(() {
-        _time += 0.1;
+        _time += 0.03;
         _multiplier = pow(1.06, _time * 10).toDouble();
         _spots.add(FlSpot(_time, _multiplier));
+
+        // Sound effect logic
+        // Interval decreases as multiplier increases (faster beeps)
+        // 1.0x -> 0.1s interval (Start extremely fast - 10 times per second)
+        // 2.0x -> 0.08s interval (Even faster)
+        // 5.0x+ -> 0.03s interval (Insanely fast machine gun)
+        
+        double speedFactor = _multiplier;
+        double beepInterval;
+        
+        if (speedFactor < 2.0) {
+            // Speed up from 0.1s to 0.08s
+            beepInterval = 0.1 - ((speedFactor - 1.0) * 0.02); 
+        } else {
+            // After 2x, decay to 0.03s
+            beepInterval = max(0.03, 0.08 / sqrt(speedFactor - 1.0));
+        }
+
+        if (_time - _lastBeepTime >= beepInterval) {
+          _playRisingSound();
+          _lastBeepTime = _time;
+        }
+
         if (_multiplier >= _crashPoint) {
           _crash();
         }
@@ -178,6 +241,7 @@ class _CrashGameScreenState extends State<CrashGameScreen> {
         _isCashingOut = false;
       });
 
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.green,

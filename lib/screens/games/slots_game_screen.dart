@@ -71,6 +71,7 @@ class _SlotsGameScreenState extends State<SlotsGameScreen> with TickerProviderSt
 
     if (!success) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(localization.translate(AppStrings.transactionFailed))),
         );
