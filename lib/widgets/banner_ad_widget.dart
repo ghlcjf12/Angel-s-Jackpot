@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:provider/provider.dart';
 import '../services/ad_service.dart';
+import '../services/iap_service.dart';
 
 class BannerAdWidget extends StatefulWidget {
   const BannerAdWidget({super.key});
@@ -20,6 +22,11 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _loadAd() {
+    // Don't load ad if user purchased ad removal
+    if (InAppPurchaseService().adRemovalPurchased) {
+      return;
+    }
+
     _bannerAd = BannerAd(
       adUnitId: AdService().bannerAdUnitId,
       request: const AdRequest(),
@@ -46,6 +53,12 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Hide banner if ad removal purchased
+    final iapService = context.watch<InAppPurchaseService>();
+    if (iapService.adRemovalPurchased) {
+      return const SizedBox.shrink();
+    }
+
     if (_isLoaded && _bannerAd != null) {
       return Container(
         alignment: Alignment.center,

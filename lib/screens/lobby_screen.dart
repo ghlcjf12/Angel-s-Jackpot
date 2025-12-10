@@ -5,6 +5,7 @@ import '../constants/app_strings.dart';
 import '../providers/game_provider.dart';
 import '../services/ad_service.dart';
 import '../services/audio_service.dart';
+import '../services/iap_service.dart';
 import '../services/localization_service.dart';
 import '../widgets/banner_ad_widget.dart';
 import 'donation_ranking_screen.dart';
@@ -172,6 +173,69 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Remove Ads Button
+                  Consumer<InAppPurchaseService>(
+                    builder: (context, iapService, child) {
+                      if (iapService.adRemovalPurchased) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                localization.translate({'en': 'Ads Removed ✓', 'ko': '광고 제거됨 ✓'}),
+                                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: iapService.isPurchasing ? null : () async {
+                            context.read<AudioService>().playButtonSound();
+                            await iapService.buyAdRemoval();
+                            if (mounted && iapService.adRemovalPurchased) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: Colors.green,
+                                  content: Text(
+                                    localization.translate({'en': 'Ads removed successfully!', 'ko': '광고가 성공적으로 제거되었습니다!'}),
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: Icon(
+                            iapService.isPurchasing ? Icons.hourglass_empty : Icons.remove_circle_outline,
+                            color: Colors.black,
+                          ),
+                          label: Text(
+                            iapService.isPurchasing
+                                ? localization.translate({'en': 'Processing...', 'ko': '처리 중...'})
+                                : localization.translate({'en': '💎 Remove Ads', 'ko': '💎 광고 제거'}),
+                            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.pinkAccent,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            minimumSize: const Size.fromHeight(_headerButtonHeight),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

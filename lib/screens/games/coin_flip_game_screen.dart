@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/app_strings.dart';
 import '../../providers/game_provider.dart';
+import '../../services/ad_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/localization_service.dart';
 import '../../widgets/banner_ad_widget.dart';
@@ -107,7 +108,15 @@ class _CoinFlipGameScreenState extends State<CoinFlipGameScreen> {
             onPressed: () {
               context.read<AudioService>().playButtonSound();
               context.read<AudioService>().playLobbyBgm();
-              Navigator.pop(context);
+              
+              AdService().incrementGameCount();
+              AdService().showInterstitialAd(
+                onDismissed: () {
+                  if (mounted) {
+                    Navigator.pop(context);
+                  }
+                },
+              );
             },
           ),
           actions: [

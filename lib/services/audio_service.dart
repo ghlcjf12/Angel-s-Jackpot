@@ -101,11 +101,13 @@ class AudioService extends ChangeNotifier {
   }
 
   Future<void> playBgm(String fileName) async {
-    _currentBgm = fileName;
     if (!_isBgmEnabled) {
       debugPrint('BGM disabled, not playing: $fileName');
+      // Don't update _currentBgm if BGM is disabled
       return;
     }
+
+    _currentBgm = fileName;
 
     try {
       debugPrint('Playing BGM: $fileName');
